@@ -155,7 +155,7 @@ TEST_SUITE_END();
 
 TEST_SUITE_BEGIN("Read");
 // Credits:
-// https://www.sfmta.com/reports/gtfs-transit-data
+// https://developers.google.com/transit/gtfs/examples/gtfs-feed
 TEST_CASE("Empty container before parsing")
 {
   Feed feed("data/San Francisco Municipal Transportation Agency");
