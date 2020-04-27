@@ -26,10 +26,7 @@ struct InvalidFieldFormat : public std::exception
 public:
   explicit InvalidFieldFormat(const std::string & msg) : message(prefix + msg) {}
 
-  const char * what() const noexcept
-  {
-    return message.c_str();
-  }
+  const char * what() const noexcept { return message.c_str(); }
 
 private:
   const std::string prefix = "Invalid GTFS field format. ";
@@ -235,10 +232,7 @@ inline bool Time::limit_hours_to_24max()
   return true;
 }
 
-inline void Time::set_total_seconds()
-{
-  total_seconds = hh * 60 * 60 + mm * 60 + ss;
-}
+inline void Time::set_total_seconds() { total_seconds = hh * 60 * 60 + mm * 60 + ss; }
 
 inline std::string append_leading_zero(const std::string & s, bool check = true)
 {
