@@ -223,7 +223,7 @@ TEST_CASE("Read GTFS feed")
   CHECK_EQ(feed.get_stop_times().size(), 28);
 }
 
-TEST_CASE("Agencies")
+TEST_CASE("Agency")
 {
   Feed feed("data/sample_feed");
   auto res = feed.read_agencies();
@@ -341,5 +341,55 @@ TEST_CASE("Shapes")
 
   auto const shape = feed.get_shape("10237");
   CHECK_EQ(shape.size(), 4);
+}
+
+TEST_CASE("Calendar")
+{
+  Feed feed("data/sample_feed");
+  auto res = feed.read_calendar();
+  CHECK_EQ(res.code, ResultCode::OK);
+
+  const auto & calendar = feed.get_calendar();
+  CHECK_EQ(calendar.size(), 2);
+  CHECK_EQ(calendar[0].service_id, "FULLW");
+  CHECK_EQ(calendar[0].start_date, Date(2007, 01, 01));
+  CHECK_EQ(calendar[0].end_date, Date(2010, 12, 31));
+  CHECK_EQ(calendar[0].monday, CalendarAvailability::Available);
+  CHECK_EQ(calendar[0].sunday, CalendarAvailability::Available);
+
+  auto calendar_for_service = feed.get_calendar("FULLW");
+  CHECK(calendar_for_service);
+}
+
+TEST_CASE("Calendar dates")
+{
+  Feed feed("data/sample_feed");
+  auto res = feed.read_calendar_dates();
+  CHECK_EQ(res.code, ResultCode::OK);
+
+  const auto & calendar_dates = feed.get_calendar_dates();
+  CHECK_EQ(calendar_dates.size(), 1);
+  CHECK_EQ(calendar_dates[0].service_id, "FULLW");
+  CHECK_EQ(calendar_dates[0].date, Date(2007, 06, 04));
+  CHECK_EQ(calendar_dates[0].exception_type, CalendarDateException::Removed);
+
+  auto calendar_dates_for_service = feed.get_calendar_dates("FULLW");
+  CHECK_EQ(calendar_dates_for_service.size(), 1);
+}
+
+TEST_CASE("Frequencies")
+{
+  Feed feed("data/sample_feed");
+  auto res = feed.read_frequencies();
+  CHECK_EQ(res.code, ResultCode::OK);
+
+  const auto & frequencies = feed.get_frequencies();
+  CHECK_EQ(frequencies.size(), 11);
+  CHECK_EQ(frequencies[0].trip_id, "STBA");
+  CHECK_EQ(frequencies[0].start_time, Time(6, 00, 00));
+  CHECK_EQ(frequencies[0].end_time, Time(22, 00, 00));
+  CHECK_EQ(frequencies[0].headway_secs, 1800);
+  auto const frequencies_for_trip = feed.get_frequencies("CITY1");
+  CHECK_EQ(frequencies_for_trip.size(), 5);
 }
 TEST_SUITE_END();

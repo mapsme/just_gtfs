@@ -977,7 +977,7 @@ public:
 
   inline Result read_frequencies();
   inline const Frequencies & get_frequencies() const;
-  inline std::optional<Frequency> get_frequency(const Id & trip_id) const;
+  inline Frequencies get_frequencies(const Id & trip_id) const;
   inline void add_frequency(const Frequency & frequency);
 
   inline Result read_transfers();
@@ -1697,7 +1697,7 @@ inline const CalendarDates & Feed::get_calendar_dates() const { return calendar_
 
 inline CalendarDates Feed::get_calendar_dates(const Id & service_id, bool sort_by_date) const
 {
-  std::vector<CalendarDate> res;
+  CalendarDates res;
   for (const auto & calendar_date : calendar_dates)
   {
     if (calendar_date.service_id == service_id)
@@ -1776,16 +1776,15 @@ inline Result Feed::read_frequencies()
 
 inline const Frequencies & Feed::get_frequencies() const { return frequencies; }
 
-inline std::optional<Frequency> Feed::get_frequency(const Id & trip_id) const
+inline Frequencies Feed::get_frequencies(const Id & trip_id) const
 {
-  const auto it = std::find_if(
-      frequencies.begin(), frequencies.end(),
-      [&trip_id](const Frequency & frequency) { return frequency.trip_id == trip_id; });
-
-  if (it == frequencies.end())
-    return std::nullopt;
-
-  return *it;
+  Frequencies res;
+  for (const auto & frequency : frequencies)
+  {
+    if (frequency.trip_id == trip_id)
+      res.push_back(frequency);
+  }
+  return res;
 }
 
 inline void Feed::add_frequency(const Frequency & frequency) { frequencies.push_back(frequency); }
