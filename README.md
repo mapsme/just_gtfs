@@ -96,12 +96,12 @@ StopTimes get_stop_times_for_trip(const Id & trip_id, bool sort_by_sequence = tr
 ## How to use library
 - For including the library in your own project: just_gtfs is completely contained inside a single header and therefore it is sufficient to copy include/just_gtfs/just_gtfs.h to your include pathes. The library does not have to be explicitly build.
 - For running library tests:
-Clone just_gtfs with `git clone --recursive` or run `git submodule update --init --recursive` after cloning.
+Clone just_gtfs with `git clone --recursive` or run `git submodule update --init --recursive --remote` after cloning.
 In the just_gtfs project directory build the project and run unit tests: 
 ```
 cmake .
 make
-ctest --output-on-failure
+ctest --output-on-failure --verbose
 ```
 The library makes use of the C++17 features and therefore you have to use appropriate compiler version.
 - For including as a submodule: use branch "for-usage-as-submodule" which consists of a single header.
