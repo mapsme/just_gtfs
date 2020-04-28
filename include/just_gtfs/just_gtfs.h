@@ -147,7 +147,7 @@ inline Result CsvParser::read_header(const std::string & csv_filename)
 
   csv_stream.open(gtfs_path / csv_filename);
   if (!csv_stream.is_open())
-    return {ResultCode::ERROR_FILE_ABSENT, "File " + csv_filename + "could not be opened"};
+    return {ResultCode::ERROR_FILE_ABSENT, "File " + csv_filename + " could not be opened"};
 
   std::string header;
   if (!getline(csv_stream, header) || header.empty())
@@ -1520,7 +1520,10 @@ inline Result Feed::parse_csv(const std::string & filename,
 
     Result res = add_entity(record);
     if (res != ResultCode::OK)
+    {
+      res.message += " while adding item from " + filename;
       return res;
+    }
   }
 
   return {ResultCode::OK, {"Parsed " + filename}};
