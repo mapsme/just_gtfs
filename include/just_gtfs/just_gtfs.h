@@ -147,11 +147,11 @@ inline Result CsvParser::read_header(const std::string & csv_filename)
 
   csv_stream.open(gtfs_path / csv_filename);
   if (!csv_stream.is_open())
-    return {ResultCode::ERROR_FILE_ABSENT, {}};
+    return {ResultCode::ERROR_FILE_ABSENT, "File " + csv_filename + "could not be opened"};
 
   std::string header;
   if (!getline(csv_stream, header) || header.empty())
-    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, {}};
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, "Empty header in file " + csv_filename};
 
   field_sequence = split_record(header, true);
   return {ResultCode::OK, {}};
