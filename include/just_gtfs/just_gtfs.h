@@ -4,7 +4,6 @@
 #include <cassert>
 #include <cstdint>
 #include <exception>
-#include <filesystem>
 #include <fstream>
 #include <functional>
 #include <istream>
@@ -69,7 +68,7 @@ public:
 
 private:
   std::vector<std::string> field_sequence;
-  std::filesystem::path gtfs_path;
+  std::string gtfs_path;
   std::ifstream csv_stream;
   static const char delimiter = ',';
 };
@@ -84,7 +83,6 @@ inline void trim_spaces(std::string & token)
 
 inline std::vector<std::string> CsvParser::split_record(const std::string & record, bool is_header)
 {
-  std::string const delims = "\r\t";
   size_t start_index = 0;
   if (is_header)
   {
@@ -127,16 +125,18 @@ inline std::vector<std::string> CsvParser::split_record(const std::string & reco
       }
       token_start_index = i + 1;
       trim_spaces(token);
-      fields.push_back(token);
-      token.erase();
+      fields.emplace_back(token);
+      token.clear();
       continue;
     }
 
-    if (delims.find(record[i]) == std::string::npos)
+    // Skip delimiters:
+    if (record[i] != '\t' && record[i] != '\r')
       token += record[i];
   }
+
   trim_spaces(token);
-  fields.push_back(token);
+  fields.emplace_back(token);
   return fields;
 }
 
@@ -145,7 +145,7 @@ inline Result CsvParser::read_header(const std::string & csv_filename)
   if (csv_stream.is_open())
     csv_stream.close();
 
-  csv_stream.open(gtfs_path / csv_filename);
+  csv_stream.open(gtfs_path + csv_filename);
   if (!csv_stream.is_open())
     return {ResultCode::ERROR_FILE_ABSENT, "File " + csv_filename + " could not be opened"};
 
@@ -1039,13 +1039,13 @@ private:
   FeedInfo feed_info;
 };
 
-inline Feed::Feed(const std::string & gtfs_path) : gtfs_directory(gtfs_path) {}
+inline Feed::Feed(const std::string & gtfs_path) : gtfs_directory(gtfs_path) {
+  if (!gtfs_directory.empty() && gtfs_directory.back() != '/')
+    gtfs_directory += "/";
+}
 
 inline Result Feed::read_feed()
 {
-  if (!std::filesystem::exists(gtfs_directory))
-    return {ResultCode::ERROR_INVALID_GTFS_PATH, "Invalid path " + gtfs_directory};
-
   // Read required files
   if (auto const res = read_agencies(); res.code != ResultCode::OK)
     return res;
@@ -1173,7 +1173,7 @@ inline Result Feed::add_agency(ParsedCsvRow const & row)
   agency.agency_fare_url = get_value_or_default(row, "agency_fare_url");
   agency.agency_email = get_value_or_default(row, "agency_email");
 
-  agencies.push_back(agency);
+  agencies.emplace_back(agency);
   return {ResultCode::OK, {}};
 }
 
@@ -1216,7 +1216,7 @@ inline Result Feed::add_route(ParsedCsvRow const & row)
   route.route_desc = get_value_or_default(row, "route_desc");
   route.route_url = get_value_or_default(row, "route_url");
 
-  routes.push_back(route);
+  routes.emplace_back(route);
 
   return {ResultCode::OK, {}};
 }
@@ -1248,7 +1248,7 @@ inline Result Feed::add_shape(ParsedCsvRow const & row)
     return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
   }
 
-  shapes.push_back(point);
+  shapes.emplace_back(point);
   return {ResultCode::OK, {}};
 }
 
@@ -1282,7 +1282,7 @@ inline Result Feed::add_trip(ParsedCsvRow const & row)
   trip.trip_short_name = get_value_or_default(row, "trip_short_name");
   trip.block_id = get_value_or_default(row, "block_id");
 
-  trips.push_back(trip);
+  trips.emplace_back(trip);
   return {ResultCode::OK, {}};
 }
 
@@ -1325,7 +1325,7 @@ inline Result Feed::add_stop(ParsedCsvRow const & row)
   stop.level_id = get_value_or_default(row, "level_id");
   stop.platform_code = get_value_or_default(row, "platform_code");
 
-  stops.push_back(stop);
+  stops.emplace_back(stop);
 
   return {ResultCode::OK, {}};
 }
@@ -1371,7 +1371,7 @@ inline Result Feed::add_stop_time(ParsedCsvRow const & row)
   // Optional:
   stop_time.stop_headsign = get_value_or_default(row, "stop_headsign");
 
-  stop_times.push_back(stop_time);
+  stop_times.emplace_back(stop_time);
   return {ResultCode::OK, {}};
 }
 
@@ -1407,7 +1407,7 @@ inline Result Feed::add_calendar_item(ParsedCsvRow const & row)
     return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
   }
 
-  calendar.push_back(calendar_item);
+  calendar.emplace_back(calendar_item);
   return {ResultCode::OK, {}};
 }
 
@@ -1435,7 +1435,7 @@ inline Result Feed::add_calendar_date(ParsedCsvRow const & row)
     return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
   }
 
-  calendar_dates.push_back(calendar_date);
+  calendar_dates.emplace_back(calendar_date);
   return {ResultCode::OK, {}};
 }
 
@@ -1465,7 +1465,7 @@ inline Result Feed::add_transfer(ParsedCsvRow const & row)
     return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
   }
 
-  transfers.push_back(transfer);
+  transfers.emplace_back(transfer);
   return {ResultCode::OK, {}};
 }
 
@@ -1496,7 +1496,7 @@ inline Result Feed::add_frequency(ParsedCsvRow const & row)
     return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
   }
 
-  frequencies.push_back(frequency);
+  frequencies.emplace_back(frequency);
   return {ResultCode::OK, {}};
 }
 
@@ -1554,7 +1554,7 @@ inline std::optional<Agency> Feed::get_agency(const Id & agency_id) const
   return *it;
 }
 
-inline void Feed::add_agency(const Agency & agency) { agencies.push_back(agency); }
+inline void Feed::add_agency(const Agency & agency) { agencies.emplace_back(agency); }
 
 inline Result Feed::read_stops()
 {
@@ -1575,7 +1575,7 @@ inline std::optional<Stop> Feed::get_stop(const Id & stop_id) const
   return *it;
 }
 
-inline void Feed::add_stop(const Stop & stop) { stops.push_back(stop); }
+inline void Feed::add_stop(const Stop & stop) { stops.emplace_back(stop); }
 
 inline Result Feed::read_routes()
 {
@@ -1597,7 +1597,7 @@ inline std::optional<Route> Feed::get_route(const Id & route_id) const
   return *it;
 }
 
-inline void Feed::add_route(const Route & route) { routes.push_back(route); }
+inline void Feed::add_route(const Route & route) { routes.emplace_back(route); }
 
 inline Result Feed::read_trips()
 {
@@ -1618,7 +1618,7 @@ inline std::optional<Trip> Feed::get_trip(const Id & trip_id) const
   return *it;
 }
 
-inline void Feed::add_trip(const Trip & trip) { trips.push_back(trip); }
+inline void Feed::add_trip(const Trip & trip) { trips.emplace_back(trip); }
 
 inline Result Feed::read_stop_times()
 {
@@ -1634,7 +1634,7 @@ inline StopTimes Feed::get_stop_times_for_stop(const Id & stop_id) const
   for (const auto & stop_time : stop_times)
   {
     if (stop_time.stop_id == stop_id)
-      res.push_back(stop_time);
+      res.emplace_back(stop_time);
   }
   return res;
 }
@@ -1645,7 +1645,7 @@ inline StopTimes Feed::get_stop_times_for_trip(const Id & trip_id, bool sort_by_
   for (const auto & stop_time : stop_times)
   {
     if (stop_time.trip_id == trip_id)
-      res.push_back(stop_time);
+      res.emplace_back(stop_time);
   }
   if (sort_by_sequence)
   {
@@ -1656,7 +1656,7 @@ inline StopTimes Feed::get_stop_times_for_trip(const Id & trip_id, bool sort_by_
   return res;
 }
 
-inline void Feed::add_stop_time(const StopTime & stop_time) { stop_times.push_back(stop_time); }
+inline void Feed::add_stop_time(const StopTime & stop_time) { stop_times.emplace_back(stop_time); }
 
 inline Result Feed::read_calendar()
 {
@@ -1681,7 +1681,7 @@ inline std::optional<CalendarItem> Feed::get_calendar(const Id & service_id) con
 
 inline void Feed::add_calendar_item(const CalendarItem & calendar_item)
 {
-  calendar.push_back(calendar_item);
+  calendar.emplace_back(calendar_item);
 }
 
 inline Result Feed::read_calendar_dates()
@@ -1698,7 +1698,7 @@ inline CalendarDates Feed::get_calendar_dates(const Id & service_id, bool sort_b
   for (const auto & calendar_date : calendar_dates)
   {
     if (calendar_date.service_id == service_id)
-      res.push_back(calendar_date);
+      res.emplace_back(calendar_date);
   }
 
   if (sort_by_date)
@@ -1713,7 +1713,7 @@ inline CalendarDates Feed::get_calendar_dates(const Id & service_id, bool sort_b
 
 inline void Feed::add_calendar_date(const CalendarDate & calendar_date)
 {
-  calendar_dates.push_back(calendar_date);
+  calendar_dates.emplace_back(calendar_date);
 }
 
 inline Result Feed::read_fare_rules()
@@ -1736,7 +1736,7 @@ inline std::optional<FareRule> Feed::get_fare_rule(const Id & fare_id) const
   return *it;
 }
 
-inline void Feed::add_fare_rule(const FareRule & fare_rule) { fare_rules.push_back(fare_rule); }
+inline void Feed::add_fare_rule(const FareRule & fare_rule) { fare_rules.emplace_back(fare_rule); }
 
 inline Result Feed::read_shapes()
 {
@@ -1752,7 +1752,7 @@ inline Shape Feed::get_shape(const Id & shape_id, bool sort_by_sequence) const
   for (const auto & shape : shapes)
   {
     if (shape.shape_id == shape_id)
-      res.push_back(shape);
+      res.emplace_back(shape);
   }
   if (sort_by_sequence)
   {
@@ -1763,7 +1763,7 @@ inline Shape Feed::get_shape(const Id & shape_id, bool sort_by_sequence) const
   return res;
 }
 
-inline void Feed::add_shape(const ShapePoint & shape) { shapes.push_back(shape); }
+inline void Feed::add_shape(const ShapePoint & shape) { shapes.emplace_back(shape); }
 
 inline Result Feed::read_frequencies()
 {
@@ -1779,12 +1779,12 @@ inline Frequencies Feed::get_frequencies(const Id & trip_id) const
   for (const auto & frequency : frequencies)
   {
     if (frequency.trip_id == trip_id)
-      res.push_back(frequency);
+      res.emplace_back(frequency);
   }
   return res;
 }
 
-inline void Feed::add_frequency(const Frequency & frequency) { frequencies.push_back(frequency); }
+inline void Feed::add_frequency(const Frequency & frequency) { frequencies.emplace_back(frequency); }
 
 inline Result Feed::read_transfers()
 {
@@ -1808,7 +1808,7 @@ inline std::optional<Transfer> Feed::get_transfer(const Id & from_stop_id,
   return *it;
 }
 
-inline void Feed::add_transfer(const Transfer & transfer) { transfers.push_back(transfer); }
+inline void Feed::add_transfer(const Transfer & transfer) { transfers.emplace_back(transfer); }
 
 inline Result Feed::read_pathways()
 {
@@ -1844,7 +1844,7 @@ inline std::optional<Pathway> Feed::get_pathway(const Id & from_stop_id,
   return *it;
 }
 
-inline void Feed::add_pathway(const Pathway & pathway) { pathways.push_back(pathway); }
+inline void Feed::add_pathway(const Pathway & pathway) { pathways.emplace_back(pathway); }
 
 inline Result Feed::read_levels()
 {
@@ -1866,7 +1866,7 @@ inline std::optional<Level> Feed::get_level(const Id & level_id) const
   return *it;
 }
 
-inline void Feed::add_level(const Level & level) { levels.push_back(level); }
+inline void Feed::add_level(const Level & level) { levels.emplace_back(level); }
 
 inline Result Feed::read_feed_info()
 {
@@ -1901,7 +1901,7 @@ inline std::optional<Translation> Feed::get_translation(const TranslationTable &
 
 inline void Feed::add_translation(const Translation & translation)
 {
-  translations.push_back(translation);
+  translations.emplace_back(translation);
 }
 
 inline Result Feed::read_attributions()
@@ -1914,6 +1914,6 @@ inline const Attributions & Feed::get_attributions() const { return attributions
 
 inline void Feed::add_attribution(const Attribution & attribution)
 {
-  attributions.push_back(attribution);
+  attributions.emplace_back(attribution);
 }
 }  // namespace gtfs
