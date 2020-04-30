@@ -159,27 +159,21 @@ inline Result CsvParser::read_header(const std::string & csv_filename)
 
 inline Result CsvParser::read_row(std::map<std::string, std::string> & obj)
 {
+  obj = {};
   std::string row;
   if (!getline(csv_stream, row))
-  {
-    obj = {};
     return {ResultCode::END_OF_FILE, {}};
-  }
 
   if (row == "\r")
-  {
-    obj = {};
     return {ResultCode::OK, {}};
-  }
 
-  std::vector<std::string> fields_values = split_record(row);
+  const std::vector<std::string> fields_values = split_record(row);
 
-  // Different count of fields in row and in the header of csv.
-  // Typical approach to skip not required fields.
-  if (fields_values.size() != field_sequence.size())
-    obj = {};
+  // Different count of fields in the row and in the header of csv.
+  // Typical approach is to skip not required fields.
+  const size_t fields_count = std::min(field_sequence.size(), fields_values.size());
 
-  for (size_t i = 0; i < field_sequence.size(); ++i)
+  for (size_t i = 0; i < fields_count; ++i)
     obj[field_sequence[i]] = fields_values[i];
 
   return {ResultCode::OK, {}};
