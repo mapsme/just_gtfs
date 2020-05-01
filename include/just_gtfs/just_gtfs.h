@@ -1040,49 +1040,49 @@ inline Feed::Feed(const std::string & gtfs_path) : gtfs_directory(gtfs_path) {
 
 inline Result Feed::read_feed()
 {
-  // Read required files
-  if (auto const res = read_agencies(); res.code != ResultCode::OK)
+  // Read required files:
+  if (auto res = read_agencies(); res.code != ResultCode::OK)
     return res;
 
-  if (auto const res = read_stops(); res.code != ResultCode::OK)
+  if (auto res = read_stops(); res.code != ResultCode::OK)
     return res;
 
-  if (auto const res = read_routes(); res.code != ResultCode::OK)
+  if (auto res = read_routes(); res.code != ResultCode::OK)
     return res;
 
-  if (auto const res = read_trips(); res.code != ResultCode::OK)
+  if (auto res = read_trips(); res.code != ResultCode::OK)
     return res;
 
-  if (auto const res = read_stop_times(); res.code != ResultCode::OK)
+  if (auto res = read_stop_times(); res.code != ResultCode::OK)
     return res;
 
-  // Conditionally required:
-  if (auto const res = read_calendar(); res.code != ResultCode::OK)
+  // Read conditionally required files:
+  if (auto res = read_calendar(); res.code != ResultCode::OK)
   {
     if (res != ResultCode::ERROR_FILE_ABSENT)
       return res;
   }
 
-  if (auto const res = read_calendar_dates(); res.code != ResultCode::OK)
+  if (auto res = read_calendar_dates(); res.code != ResultCode::OK)
   {
     if (res != ResultCode::ERROR_FILE_ABSENT)
       return res;
   }
 
   // Optional files:
-  if (auto const res = read_shapes(); res.code != ResultCode::OK)
+  if (auto res = read_shapes(); res.code != ResultCode::OK)
   {
     if (res != ResultCode::ERROR_FILE_ABSENT)
       return res;
   }
 
-  if (auto const res = read_transfers(); res.code != ResultCode::OK)
+  if (auto res = read_transfers(); res.code != ResultCode::OK)
   {
     if (res != ResultCode::ERROR_FILE_ABSENT)
       return res;
   }
 
-  if (auto const res = read_frequencies(); res.code != ResultCode::OK)
+  if (auto res = read_frequencies(); res.code != ResultCode::OK)
   {
     if (res != ResultCode::ERROR_FILE_ABSENT)
       return res;
