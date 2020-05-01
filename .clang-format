@@ -1,0 +1,31 @@
+# Configuration file for clang-format, based on docs/CPP_STYLE.md.
+
+BasedOnStyle: Google
+IndentWidth: 2
+BreakBeforeBraces: Allman
+ColumnLimit: 100
+
+Language: Cpp
+AccessModifierOffset: -2
+AllowShortBlocksOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+BreakConstructorInitializersBeforeComma: true
+ConstructorInitializerIndentWidth: 4
+DerivePointerAlignment: false
+IndentCaseLabels: false
+NamespaceIndentation: None
+PointerAlignment: Middle
+SortIncludes: true
+Standard: Cpp11
+
+IncludeBlocks:   Preserve
+IncludeCategories:
+  - Regex:           '^<.*\.h>'
+    Priority:        1
+  - Regex:           '^<.*'
+    Priority:        2
+  - Regex:           '.*'
+    Priority:        3
