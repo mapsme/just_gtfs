@@ -9,7 +9,7 @@ TEST_SUITE_BEGIN("Handling time GTFS fields");
 TEST_CASE("Time in H:MM:SS format")
 {
   Time stop_time("0:19:00");
-  CHECK(stop_time.is_provided());
+  REQUIRE(stop_time.is_provided());
   CHECK_EQ(stop_time.get_hh_mm_ss(), std::make_tuple(0, 19, 0));
   CHECK_EQ(stop_time.get_raw_time(), "0:19:00");
   CHECK_EQ(stop_time.get_total_seconds(), 19 * 60);
@@ -130,7 +130,7 @@ TEST_SUITE_BEGIN("Csv parsing");
 TEST_CASE("Record with empty values")
 {
   const auto res = CsvParser::split_record(",, ,");
-  CHECK_EQ(res.size(), 4);
+  REQUIRE_EQ(res.size(), 4);
   for (const auto & token : res)
     CHECK(token.empty());
 }
@@ -138,7 +138,7 @@ TEST_CASE("Record with empty values")
 TEST_CASE("Header with UTF BOM")
 {
   const auto res = CsvParser::split_record("\xef\xbb\xbfroute_id, agency_id", true);
-  CHECK_EQ(res.size(), 2);
+  REQUIRE_EQ(res.size(), 2);
   CHECK_EQ(res[0], "route_id");
   CHECK_EQ(res[1], "agency_id");
 }
@@ -146,7 +146,7 @@ TEST_CASE("Header with UTF BOM")
 TEST_CASE("Quotation marks")
 {
   const auto res = CsvParser::split_record(R"(27681 ,,"Sisters, OR",,"44.29124",1)");
-  CHECK_EQ(res.size(), 6);
+  REQUIRE_EQ(res.size(), 6);
   CHECK_EQ(res[2], "Sisters, OR");
   CHECK_EQ(res[4], "44.29124");
   CHECK_EQ(res[5], "1");
@@ -158,9 +158,9 @@ TEST_SUITE_BEGIN("Read");
 // https://developers.google.com/transit/gtfs/examples/gtfs-feed
 TEST_CASE("Empty container before parsing")
 {
-  Feed feed("data/San Francisco Municipal Transportation Agency");
-  CHECK(feed.get_agencies().empty());
-  auto agency = feed.get_agency("10");
+  Feed feed("data/non_existing_dir");
+  REQUIRE(feed.get_agencies().empty());
+  auto agency = feed.get_agency("agency_10");
   CHECK(!agency);
 }
 
@@ -168,7 +168,7 @@ TEST_CASE("Transfers")
 {
   Feed feed("data/sample_feed");
   auto res = feed.read_transfers();
-  CHECK_EQ(res.code, ResultCode::ERROR_FILE_ABSENT);
+  REQUIRE_EQ(res.code, ResultCode::ERROR_FILE_ABSENT);
   CHECK_EQ(feed.get_transfers().size(), 0);
 }
 
@@ -176,12 +176,12 @@ TEST_CASE("Calendar")
 {
   Feed feed("data/sample_feed");
   auto res = feed.read_calendar();
-  CHECK_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(res.code, ResultCode::OK);
   const auto & calendar = feed.get_calendar();
-  CHECK_EQ(calendar.size(), 2);
+  REQUIRE_EQ(calendar.size(), 2);
 
   const auto calendar_record = feed.get_calendar("WE");
-  CHECK(calendar_record);
+  REQUIRE(calendar_record);
 
   CHECK_EQ(calendar_record->start_date, Date(2007, 01, 01));
   CHECK_EQ(calendar_record->end_date, Date(2010, 12, 31));
@@ -199,12 +199,12 @@ TEST_CASE("Calendar dates")
 {
   Feed feed("data/sample_feed");
   auto res = feed.read_calendar_dates();
-  CHECK_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(res.code, ResultCode::OK);
   const auto & calendar_dates = feed.get_calendar_dates();
-  CHECK_EQ(calendar_dates.size(), 1);
+  REQUIRE_EQ(calendar_dates.size(), 1);
 
   const auto calendar_record = feed.get_calendar_dates("FULLW");
-  CHECK(!calendar_record.empty());
+  REQUIRE(!calendar_record.empty());
 
   CHECK_EQ(calendar_record[0].date, Date(2007, 06, 04));
   CHECK_EQ(calendar_record[0].exception_type, CalendarDateException::Removed);
@@ -214,7 +214,7 @@ TEST_CASE("Read GTFS feed")
 {
   Feed feed("data/sample_feed");
   auto res = feed.read_feed();
-  CHECK_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(res.code, ResultCode::OK);
   CHECK_EQ(feed.get_agencies().size(), 1);
   CHECK_EQ(feed.get_routes().size(), 5);
   CHECK_EQ(feed.get_trips().size(), 11);
@@ -227,9 +227,9 @@ TEST_CASE("Agency")
 {
   Feed feed("data/sample_feed");
   auto res = feed.read_agencies();
-  CHECK_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(res.code, ResultCode::OK);
   const auto & agencies = feed.get_agencies();
-  CHECK_EQ(agencies.size(), 1);
+  REQUIRE_EQ(agencies.size(), 1);
   CHECK_EQ(agencies[0].agency_id, "DTA");
   CHECK_EQ(agencies[0].agency_name, "Demo Transit Authority");
   CHECK_EQ(agencies[0].agency_url, "http://google.com");
@@ -244,9 +244,9 @@ TEST_CASE("Routes")
 {
   Feed feed("data/sample_feed");
   auto res = feed.read_routes();
-  CHECK_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(res.code, ResultCode::OK);
   const auto & routes = feed.get_routes();
-  CHECK_EQ(routes.size(), 5);
+  REQUIRE_EQ(routes.size(), 5);
   CHECK_EQ(routes[0].route_id, "AB");
   CHECK_EQ(routes[0].agency_id, "DTA");
   CHECK_EQ(routes[0].route_short_name, "10");
@@ -264,9 +264,9 @@ TEST_CASE("Trips")
 {
   Feed feed("data/sample_feed");
   auto res = feed.read_trips();
-  CHECK_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(res.code, ResultCode::OK);
   const auto & trips = feed.get_trips();
-  CHECK_EQ(trips.size(), 11);
+  REQUIRE_EQ(trips.size(), 11);
 
   CHECK_EQ(trips[0].block_id, "1");
   CHECK_EQ(trips[0].route_id, "AB");
@@ -277,7 +277,7 @@ TEST_CASE("Trips")
   CHECK_EQ(trips[0].trip_id, "AB1");
 
   auto const trip = feed.get_trip("AB1");
-  CHECK(trip);
+  REQUIRE(trip);
   CHECK(trip.value().trip_short_name.empty());
 }
 
@@ -285,10 +285,10 @@ TEST_CASE("Stops")
 {
   Feed feed("data/sample_feed");
   auto res = feed.read_stops();
-  CHECK_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(res.code, ResultCode::OK);
 
   const auto & stops = feed.get_stops();
-  CHECK_EQ(stops.size(), 9);
+  REQUIRE_EQ(stops.size(), 9);
   CHECK_EQ(stops[0].stop_lat, 36.425288);
   CHECK_EQ(stops[0].stop_lon, -117.133162);
   CHECK(stops[0].stop_code.empty());
@@ -307,10 +307,10 @@ TEST_CASE("StopTimes")
 {
   Feed feed("data/sample_feed");
   auto res = feed.read_stop_times();
-  CHECK_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(res.code, ResultCode::OK);
 
   const auto & stop_times = feed.get_stop_times();
-  CHECK_EQ(stop_times.size(), 28);
+  REQUIRE_EQ(stop_times.size(), 28);
 
   CHECK_EQ(stop_times[0].trip_id, "STBA");
   CHECK_EQ(stop_times[0].arrival_time, Time(06, 00, 00));
@@ -329,10 +329,10 @@ TEST_CASE("Shapes")
 {
   Feed feed("data/sample_feed");
   auto res = feed.read_shapes();
-  CHECK_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(res.code, ResultCode::OK);
 
   const auto & shapes = feed.get_shapes();
-  CHECK_EQ(shapes.size(), 8);
+  REQUIRE_EQ(shapes.size(), 8);
   CHECK_EQ(shapes[0].shape_id, "10237");
   CHECK_EQ(shapes[0].shape_pt_lat, 43.5176524709);
   CHECK_EQ(shapes[0].shape_pt_lon, -79.6906570431);
@@ -347,10 +347,10 @@ TEST_CASE("Calendar")
 {
   Feed feed("data/sample_feed");
   auto res = feed.read_calendar();
-  CHECK_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(res.code, ResultCode::OK);
 
   const auto & calendar = feed.get_calendar();
-  CHECK_EQ(calendar.size(), 2);
+  REQUIRE_EQ(calendar.size(), 2);
   CHECK_EQ(calendar[0].service_id, "FULLW");
   CHECK_EQ(calendar[0].start_date, Date(2007, 01, 01));
   CHECK_EQ(calendar[0].end_date, Date(2010, 12, 31));
@@ -365,10 +365,10 @@ TEST_CASE("Calendar dates")
 {
   Feed feed("data/sample_feed");
   auto res = feed.read_calendar_dates();
-  CHECK_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(res.code, ResultCode::OK);
 
   const auto & calendar_dates = feed.get_calendar_dates();
-  CHECK_EQ(calendar_dates.size(), 1);
+  REQUIRE_EQ(calendar_dates.size(), 1);
   CHECK_EQ(calendar_dates[0].service_id, "FULLW");
   CHECK_EQ(calendar_dates[0].date, Date(2007, 06, 04));
   CHECK_EQ(calendar_dates[0].exception_type, CalendarDateException::Removed);
@@ -381,10 +381,10 @@ TEST_CASE("Frequencies")
 {
   Feed feed("data/sample_feed");
   auto res = feed.read_frequencies();
-  CHECK_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(res.code, ResultCode::OK);
 
   const auto & frequencies = feed.get_frequencies();
-  CHECK_EQ(frequencies.size(), 11);
+  REQUIRE_EQ(frequencies.size(), 11);
   CHECK_EQ(frequencies[0].trip_id, "STBA");
   CHECK_EQ(frequencies[0].start_time, Time(6, 00, 00));
   CHECK_EQ(frequencies[0].end_time, Time(22, 00, 00));
