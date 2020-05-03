@@ -1,0 +1,2 @@
+feed_publisher_name,feed_publisher_url,feed_lang,feed_version,feed_license
+"Test Solutions, Inc.",http://test,en,,

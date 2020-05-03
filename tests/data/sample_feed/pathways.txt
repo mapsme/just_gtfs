@@ -1,0 +1,4 @@
+pathway_id,from_stop_id,to_stop_id,pathway_mode,signposted_as,reversed_signposted_as,is_bidirectional
+T-A01C01,1073S,1098E,2,"Sign1","Sign2",1
+T-A01D01,1075S,1118S,1,"Sign4",,0
+T-A01D01,1075N,1118N,1,,,1
