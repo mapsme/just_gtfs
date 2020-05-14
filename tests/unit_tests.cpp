@@ -164,23 +164,39 @@ TEST_CASE("Empty container before parsing")
   CHECK(!agency);
 }
 
+TEST_CASE("Non existend directory")
+{
+  Feed feed("data/non_existing_dir");
+  REQUIRE_EQ(feed.read_transfers(), ResultCode::ERROR_FILE_ABSENT);
+  CHECK_EQ(feed.get_transfers().size(), 0);
+}
+
 TEST_CASE("Transfers")
 {
   Feed feed("data/sample_feed");
-  auto res = feed.read_transfers();
-  REQUIRE_EQ(res.code, ResultCode::ERROR_FILE_ABSENT);
-  CHECK_EQ(feed.get_transfers().size(), 0);
+  REQUIRE_EQ(feed.read_transfers(), ResultCode::OK);
+  const auto & transfers = feed.get_transfers();
+  CHECK_EQ(transfers.size(), 4);
+
+  CHECK_EQ(transfers[0].from_stop_id, "130");
+  CHECK_EQ(transfers[0].to_stop_id, "4");
+  CHECK_EQ(transfers[0].transfer_type, TransferType::MinimumTime);
+  CHECK_EQ(transfers[0].min_transfer_time, 70);
+
+  const auto & transfer = feed.get_transfer("314", "11");
+  REQUIRE(transfer);
+  CHECK_EQ(transfer.value().transfer_type, TransferType::Timed);
+  CHECK_EQ(transfer.value().min_transfer_time, 0);
 }
 
 TEST_CASE("Calendar")
 {
   Feed feed("data/sample_feed");
-  auto res = feed.read_calendar();
-  REQUIRE_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(feed.read_calendar(), ResultCode::OK);
   const auto & calendar = feed.get_calendar();
   REQUIRE_EQ(calendar.size(), 2);
 
-  const auto calendar_record = feed.get_calendar("WE");
+  const auto & calendar_record = feed.get_calendar("WE");
   REQUIRE(calendar_record);
 
   CHECK_EQ(calendar_record->start_date, Date(2007, 01, 01));
@@ -198,12 +214,11 @@ TEST_CASE("Calendar")
 TEST_CASE("Calendar dates")
 {
   Feed feed("data/sample_feed");
-  auto res = feed.read_calendar_dates();
-  REQUIRE_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(feed.read_calendar_dates(), ResultCode::OK);
   const auto & calendar_dates = feed.get_calendar_dates();
   REQUIRE_EQ(calendar_dates.size(), 1);
 
-  const auto calendar_record = feed.get_calendar_dates("FULLW");
+  const auto & calendar_record = feed.get_calendar_dates("FULLW");
   REQUIRE(!calendar_record.empty());
 
   CHECK_EQ(calendar_record[0].date, Date(2007, 06, 04));
@@ -213,21 +228,32 @@ TEST_CASE("Calendar dates")
 TEST_CASE("Read GTFS feed")
 {
   Feed feed("data/sample_feed");
-  auto res = feed.read_feed();
-  REQUIRE_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(feed.read_feed(), ResultCode::OK);
+
   CHECK_EQ(feed.get_agencies().size(), 1);
   CHECK_EQ(feed.get_routes().size(), 5);
   CHECK_EQ(feed.get_trips().size(), 11);
   CHECK_EQ(feed.get_shapes().size(), 8);
   CHECK_EQ(feed.get_stops().size(), 9);
   CHECK_EQ(feed.get_stop_times().size(), 28);
+  CHECK_EQ(feed.get_transfers().size(), 4);
+  CHECK_EQ(feed.get_frequencies().size(), 11);
+  CHECK_EQ(feed.get_attributions().size(), 1);
+  CHECK_EQ(feed.get_calendar().size(), 2);
+  CHECK_EQ(feed.get_calendar_dates().size(), 1);
+  CHECK_EQ(feed.get_fare_attributes().size(), 2);
+  CHECK_EQ(feed.get_fare_rules().size(), 4);
+  CHECK(!feed.get_feed_info().feed_publisher_name.empty());
+  CHECK_EQ(feed.get_levels().size(), 3);
+  CHECK_EQ(feed.get_pathways().size(), 3);
+  CHECK_EQ(feed.get_translations().size(), 1);
 }
 
 TEST_CASE("Agency")
 {
   Feed feed("data/sample_feed");
-  auto res = feed.read_agencies();
-  REQUIRE_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(feed.read_agencies(), ResultCode::OK);
+
   const auto & agencies = feed.get_agencies();
   REQUIRE_EQ(agencies.size(), 1);
   CHECK_EQ(agencies[0].agency_id, "DTA");
@@ -243,8 +269,8 @@ TEST_CASE("Agency")
 TEST_CASE("Routes")
 {
   Feed feed("data/sample_feed");
-  auto res = feed.read_routes();
-  REQUIRE_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(feed.read_routes(), ResultCode::OK);
+
   const auto & routes = feed.get_routes();
   REQUIRE_EQ(routes.size(), 5);
   CHECK_EQ(routes[0].route_id, "AB");
@@ -256,15 +282,15 @@ TEST_CASE("Routes")
   CHECK(routes[0].route_color.empty());
   CHECK(routes[0].route_desc.empty());
 
-  auto const route = feed.get_route("AB");
+  const auto & route = feed.get_route("AB");
   CHECK(route);
 }
 
 TEST_CASE("Trips")
 {
   Feed feed("data/sample_feed");
-  auto res = feed.read_trips();
-  REQUIRE_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(feed.read_trips(), ResultCode::OK);
+
   const auto & trips = feed.get_trips();
   REQUIRE_EQ(trips.size(), 11);
 
@@ -276,7 +302,7 @@ TEST_CASE("Trips")
   CHECK_EQ(trips[0].service_id, "FULLW");
   CHECK_EQ(trips[0].trip_id, "AB1");
 
-  auto const trip = feed.get_trip("AB1");
+  const auto & trip = feed.get_trip("AB1");
   REQUIRE(trip);
   CHECK(trip.value().trip_short_name.empty());
 }
@@ -284,8 +310,7 @@ TEST_CASE("Trips")
 TEST_CASE("Stops")
 {
   Feed feed("data/sample_feed");
-  auto res = feed.read_stops();
-  REQUIRE_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(feed.read_stops(), ResultCode::OK);
 
   const auto & stops = feed.get_stops();
   REQUIRE_EQ(stops.size(), 9);
@@ -299,15 +324,14 @@ TEST_CASE("Stops")
   CHECK_EQ(stops[0].location_type, StopLocationType::GenericNode);
   CHECK(stops[0].zone_id.empty());
 
-  auto const stop = feed.get_stop("FUR_CREEK_RES");
-  CHECK(stop);
+  auto const & stop = feed.get_stop("FUR_CREEK_RES");
+  REQUIRE(stop);
 }
 
 TEST_CASE("StopTimes")
 {
   Feed feed("data/sample_feed");
-  auto res = feed.read_stop_times();
-  REQUIRE_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(feed.read_stop_times(), ResultCode::OK);
 
   const auto & stop_times = feed.get_stop_times();
   REQUIRE_EQ(stop_times.size(), 28);
@@ -328,8 +352,7 @@ TEST_CASE("StopTimes")
 TEST_CASE("Shapes")
 {
   Feed feed("data/sample_feed");
-  auto res = feed.read_shapes();
-  REQUIRE_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(feed.read_shapes(), ResultCode::OK);
 
   const auto & shapes = feed.get_shapes();
   REQUIRE_EQ(shapes.size(), 8);
@@ -339,15 +362,14 @@ TEST_CASE("Shapes")
   CHECK_EQ(shapes[0].shape_pt_sequence, 50017);
   CHECK_EQ(shapes[0].shape_dist_traveled, 12669);
 
-  auto const shape = feed.get_shape("10237");
+  const auto & shape = feed.get_shape("10237");
   CHECK_EQ(shape.size(), 4);
 }
 
 TEST_CASE("Calendar")
 {
   Feed feed("data/sample_feed");
-  auto res = feed.read_calendar();
-  REQUIRE_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(feed.read_calendar(), ResultCode::OK);
 
   const auto & calendar = feed.get_calendar();
   REQUIRE_EQ(calendar.size(), 2);
@@ -357,15 +379,14 @@ TEST_CASE("Calendar")
   CHECK_EQ(calendar[0].monday, CalendarAvailability::Available);
   CHECK_EQ(calendar[0].sunday, CalendarAvailability::Available);
 
-  auto calendar_for_service = feed.get_calendar("FULLW");
+  const auto & calendar_for_service = feed.get_calendar("FULLW");
   CHECK(calendar_for_service);
 }
 
 TEST_CASE("Calendar dates")
 {
   Feed feed("data/sample_feed");
-  auto res = feed.read_calendar_dates();
-  REQUIRE_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(feed.read_calendar_dates(), ResultCode::OK);
 
   const auto & calendar_dates = feed.get_calendar_dates();
   REQUIRE_EQ(calendar_dates.size(), 1);
@@ -373,15 +394,14 @@ TEST_CASE("Calendar dates")
   CHECK_EQ(calendar_dates[0].date, Date(2007, 06, 04));
   CHECK_EQ(calendar_dates[0].exception_type, CalendarDateException::Removed);
 
-  auto calendar_dates_for_service = feed.get_calendar_dates("FULLW");
+  const auto & calendar_dates_for_service = feed.get_calendar_dates("FULLW");
   CHECK_EQ(calendar_dates_for_service.size(), 1);
 }
 
 TEST_CASE("Frequencies")
 {
   Feed feed("data/sample_feed");
-  auto res = feed.read_frequencies();
-  REQUIRE_EQ(res.code, ResultCode::OK);
+  REQUIRE_EQ(feed.read_frequencies(), ResultCode::OK);
 
   const auto & frequencies = feed.get_frequencies();
   REQUIRE_EQ(frequencies.size(), 11);
@@ -389,7 +409,128 @@ TEST_CASE("Frequencies")
   CHECK_EQ(frequencies[0].start_time, Time(6, 00, 00));
   CHECK_EQ(frequencies[0].end_time, Time(22, 00, 00));
   CHECK_EQ(frequencies[0].headway_secs, 1800);
-  auto const frequencies_for_trip = feed.get_frequencies("CITY1");
+
+  const auto & frequencies_for_trip = feed.get_frequencies("CITY1");
   CHECK_EQ(frequencies_for_trip.size(), 5);
 }
+
+TEST_CASE("Fare attributes")
+{
+  Feed feed("data/sample_feed");
+  REQUIRE_EQ(feed.read_fare_attributes(), ResultCode::OK);
+
+  const auto & attributes = feed.get_fare_attributes();
+  REQUIRE_EQ(attributes.size(), 2);
+  CHECK_EQ(attributes[0].fare_id, "p");
+  CHECK_EQ(attributes[0].price, 1.25);
+  CHECK_EQ(attributes[0].currency_type, "USD");
+  CHECK_EQ(attributes[0].payment_method, FarePayment::OnBoard);
+  CHECK_EQ(attributes[0].transfers, FareTransfers::No);
+  CHECK_EQ(attributes[0].transfer_duration, 0);
+
+  const auto & attributes_for_id = feed.get_fare_attributes("a");
+  REQUIRE_EQ(attributes_for_id.size(), 1);
+  CHECK_EQ(attributes_for_id[0].price, 5.25);
+}
+
+TEST_CASE("Fare rules")
+{
+  Feed feed("data/sample_feed");
+  REQUIRE_EQ(feed.read_fare_rules(), ResultCode::OK);
+
+  const auto & fare_rules = feed.get_fare_rules();
+  REQUIRE_EQ(fare_rules.size(), 4);
+  CHECK_EQ(fare_rules[0].fare_id, "p");
+  CHECK_EQ(fare_rules[0].route_id, "AB");
+
+  const auto & rules_for_id = feed.get_fare_rules("p");
+  REQUIRE_EQ(rules_for_id.size(), 3);
+  CHECK_EQ(rules_for_id[1].route_id, "STBA");
+}
+
+TEST_CASE("Levels")
+{
+  Feed feed("data/sample_feed");
+  REQUIRE_EQ(feed.read_levels(), ResultCode::OK);
+
+  const auto & levels = feed.get_levels();
+  REQUIRE_EQ(levels.size(), 3);
+  CHECK_EQ(levels[0].level_id, "U321L1");
+  CHECK_EQ(levels[0].level_index, -1.5);
+
+  const auto & level = feed.get_level("U321L2");
+  REQUIRE(level);
+
+  CHECK_EQ(level.value().level_index, -2);
+  CHECK_EQ(level.value().level_name, "Vestibul2");
+}
+
+TEST_CASE("Pathways")
+{
+  Feed feed("data/sample_feed");
+  REQUIRE_EQ(feed.read_pathways(), ResultCode::OK);
+
+  const auto & pathways = feed.get_pathways();
+  REQUIRE_EQ(pathways.size(), 3);
+  CHECK_EQ(pathways[0].pathway_id, "T-A01C01");
+  CHECK_EQ(pathways[0].from_stop_id, "1073S");
+  CHECK_EQ(pathways[0].to_stop_id, "1098E");
+  CHECK_EQ(pathways[0].pathway_mode, PathwayMode::Stairs);
+  CHECK_EQ(pathways[0].signposted_as, "Sign1");
+  CHECK_EQ(pathways[0].reversed_signposted_as, "Sign2");
+  CHECK_EQ(pathways[0].is_bidirectional, PathwayDirection::Bidirectional);
+
+  const auto & pathways_by_id = feed.get_pathways("T-A01D01");
+  REQUIRE_EQ(pathways_by_id.size(), 2);
+  CHECK_EQ(pathways_by_id[0].is_bidirectional, PathwayDirection::Unidirectional);
+  CHECK(pathways_by_id[0].reversed_signposted_as.empty());
+}
+
+TEST_CASE("Translations")
+{
+  Feed feed("data/sample_feed");
+  REQUIRE_EQ(feed.read_translations(), ResultCode::OK);
+
+  const auto & translations = feed.get_translations();
+  REQUIRE_EQ(translations.size(), 1);
+  CHECK_EQ(translations[0].table_name, "stop_times");
+  CHECK_EQ(translations[0].field_name, "stop_headsign");
+  CHECK_EQ(translations[0].language, "en");
+  CHECK_EQ(translations[0].translation, "Downtown");
+  CHECK(translations[0].record_id.empty());
+  CHECK(translations[0].record_sub_id.empty());
+  CHECK(translations[0].field_value.empty());
+
+  CHECK_EQ(feed.get_translations("stop_times").size(), 1);
+}
+
+TEST_CASE("Attributions")
+{
+  Feed feed("data/sample_feed");
+  REQUIRE_EQ(feed.read_attributions(), ResultCode::OK);
+
+  const auto & attributions = feed.get_attributions();
+  REQUIRE_EQ(attributions.size(), 1);
+  CHECK_EQ(attributions[0].attribution_id, "0");
+  CHECK_EQ(attributions[0].organization_name, "Test inc");
+  CHECK_EQ(attributions[0].is_producer, AttributionRole::Yes);
+  CHECK_EQ(attributions[0].is_operator, AttributionRole::No);
+  CHECK_EQ(attributions[0].is_authority, AttributionRole::No);
+  CHECK_EQ(attributions[0].attribution_url, "https://test.pl/gtfs/");
+  CHECK(attributions[0].attribution_email.empty());
+  CHECK(attributions[0].attribution_phone.empty());
+}
+
+TEST_CASE("Feed info")
+{
+  Feed feed("data/sample_feed");
+  REQUIRE_EQ(feed.read_feed_info(), ResultCode::OK);
+
+  const auto & info = feed.get_feed_info();
+
+  CHECK_EQ(info.feed_publisher_name, "Test Solutions, Inc.");
+  CHECK_EQ(info.feed_publisher_url, "http://test");
+  CHECK_EQ(info.feed_lang, "en");
+}
+
 TEST_SUITE_END();

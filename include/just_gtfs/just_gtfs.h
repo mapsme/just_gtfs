@@ -19,7 +19,7 @@
 
 namespace gtfs
 {
-// Helper classes ----------------------------------------------------------------------------------
+// Helper classes and functions---------------------------------------------------------------------
 struct InvalidFieldFormat : public std::exception
 {
 public:
@@ -50,7 +50,7 @@ struct Result
   Message message;
 
   bool operator==(ResultCode result_code) const { return code == result_code; }
-  bool operator!=(ResultCode result_code) const { return !(code == result_code); }
+  bool operator!=(ResultCode result_code) const { return !(*this == result_code); }
 };
 
 // Csv parser  -------------------------------------------------------------------------------------
@@ -574,16 +574,6 @@ enum class PathwayDirection
   Bidirectional = 1
 };
 
-enum class TranslationTable
-{
-  Agency = 0,
-  Stops,
-  Routes,
-  Trips,
-  StopTimes,
-  FeedInfo
-};
-
 enum class AttributionRole
 {
   No = 0,  // Organization doesn’t have this role
@@ -723,12 +713,12 @@ struct CalendarDate
 };
 
 // Optional dataset file
-struct FareAttribute
+struct FareAttributesItem
 {
   // Required:
   Id fare_id;
   double price = 0.0;
-  CurrencyCode currency_code;
+  CurrencyCode currency_type;
   FarePayment payment_method = FarePayment::BeforeBoarding;
   FareTransfers transfers = FareTransfers::Unlimited;
 
@@ -794,7 +784,7 @@ struct Transfer
 struct Pathway
 {
   // Required:
-  Id pathway_d;
+  Id pathway_id;
   Id from_stop_id;
   Id to_stop_id;
   PathwayMode pathway_mode = PathwayMode::Walkway;
@@ -853,7 +843,7 @@ struct FeedInfo
 struct Translation
 {
   // Required:
-  TranslationTable table_name = TranslationTable::Agency;
+  Text table_name;
   Text field_name;
   LanguageCode language;
   Text translation;
@@ -895,6 +885,7 @@ using Calendar = std::vector<CalendarItem>;
 using CalendarDates = std::vector<CalendarDate>;
 
 using FareRules = std::vector<FareRule>;
+using FareAttributes = std::vector<FareAttributesItem>;
 using Shapes = std::vector<ShapePoint>;
 using Shape = std::vector<ShapePoint>;
 using Frequencies = std::vector<Frequency>;
@@ -955,8 +946,13 @@ public:
 
   inline Result read_fare_rules();
   inline const FareRules & get_fare_rules() const;
-  inline std::optional<FareRule> get_fare_rule(const Id & fare_id) const;
+  inline FareRules get_fare_rules(const Id & fare_id) const;
   inline void add_fare_rule(const FareRule & fare_rule);
+
+  inline Result read_fare_attributes();
+  inline const FareAttributes & get_fare_attributes() const;
+  inline FareAttributes get_fare_attributes(const Id & fare_id) const;
+  inline void add_fare_attributes(const FareAttributesItem & fare_attributes_item);
 
   inline Result read_shapes();
   inline const Shapes & get_shapes() const;
@@ -975,8 +971,8 @@ public:
 
   inline Result read_pathways();
   inline const Pathways & get_pathways() const;
-  inline std::optional<Pathway> get_pathway(const Id & pathway_id) const;
-  inline std::optional<Pathway> get_pathway(const Id & from_stop_id, const Id & to_stop_id) const;
+  inline Pathways get_pathways(const Id & pathway_id) const;
+  inline Pathways get_pathways(const Id & from_stop_id, const Id & to_stop_id) const;
   inline void add_pathway(const Pathway & pathway);
 
   inline Result read_levels();
@@ -990,7 +986,7 @@ public:
 
   inline Result read_translations();
   inline const Translations & get_translations() const;
-  inline std::optional<Translation> get_translation(const TranslationTable & table_name) const;
+  inline Translations get_translations(const Text & table_name) const;
   inline void add_translation(const Translation & translation);
 
   inline Result read_attributions();
@@ -1001,16 +997,23 @@ private:
   inline Result parse_csv(const std::string & filename,
                           const std::function<Result(const ParsedCsvRow & record)> & add_entity);
 
-  inline Result add_agency(ParsedCsvRow const & row);
-  inline Result add_route(ParsedCsvRow const & row);
-  inline Result add_shape(ParsedCsvRow const & row);
-  inline Result add_trip(ParsedCsvRow const & row);
-  inline Result add_stop(ParsedCsvRow const & row);
-  inline Result add_stop_time(ParsedCsvRow const & row);
-  inline Result add_calendar_item(ParsedCsvRow const & row);
-  inline Result add_calendar_date(ParsedCsvRow const & row);
-  inline Result add_transfer(ParsedCsvRow const & row);
-  inline Result add_frequency(ParsedCsvRow const & row);
+  inline Result add_agency(const ParsedCsvRow & row);
+  inline Result add_route(const ParsedCsvRow & row);
+  inline Result add_shape(const ParsedCsvRow & row);
+  inline Result add_trip(const ParsedCsvRow & row);
+  inline Result add_stop(const ParsedCsvRow & row);
+  inline Result add_stop_time(const ParsedCsvRow & row);
+  inline Result add_calendar_item(const ParsedCsvRow & row);
+  inline Result add_calendar_date(const ParsedCsvRow & row);
+  inline Result add_transfer(const ParsedCsvRow & row);
+  inline Result add_frequency(const ParsedCsvRow & row);
+  inline Result add_fare_attributes(const ParsedCsvRow & row);
+  inline Result add_fare_rule(const ParsedCsvRow & row);
+  inline Result add_pathway(const ParsedCsvRow & row);
+  inline Result add_level(const ParsedCsvRow & row);
+  inline Result add_feed_info(const ParsedCsvRow & row);
+  inline Result add_translation(const ParsedCsvRow & row);
+  inline Result add_attribution(const ParsedCsvRow & row);
 
   std::string gtfs_directory;
 
@@ -1023,6 +1026,7 @@ private:
   Calendar calendar;
   CalendarDates calendar_dates;
   FareRules fare_rules;
+  FareAttributes fare_attributes;
   Shape shapes;
   Frequencies frequencies;
   Transfers transfers;
@@ -1033,62 +1037,72 @@ private:
   FeedInfo feed_info;
 };
 
-inline Feed::Feed(const std::string & gtfs_path) : gtfs_directory(gtfs_path) {
+inline Feed::Feed(const std::string & gtfs_path) : gtfs_directory(gtfs_path)
+{
   if (!gtfs_directory.empty() && gtfs_directory.back() != '/')
     gtfs_directory += "/";
+}
+
+inline bool ErrorParsingOptionalFile(const Result & res)
+{
+  return res != ResultCode::OK && res != ResultCode::ERROR_FILE_ABSENT;
 }
 
 inline Result Feed::read_feed()
 {
   // Read required files:
-  if (auto res = read_agencies(); res.code != ResultCode::OK)
+  if (auto res = read_agencies(); res != ResultCode::OK)
     return res;
 
-  if (auto res = read_stops(); res.code != ResultCode::OK)
+  if (auto res = read_stops(); res != ResultCode::OK)
     return res;
 
-  if (auto res = read_routes(); res.code != ResultCode::OK)
+  if (auto res = read_routes(); res != ResultCode::OK)
     return res;
 
-  if (auto res = read_trips(); res.code != ResultCode::OK)
+  if (auto res = read_trips(); res != ResultCode::OK)
     return res;
 
-  if (auto res = read_stop_times(); res.code != ResultCode::OK)
+  if (auto res = read_stop_times(); res != ResultCode::OK)
     return res;
 
   // Read conditionally required files:
-  if (auto res = read_calendar(); res.code != ResultCode::OK)
-  {
-    if (res != ResultCode::ERROR_FILE_ABSENT)
-      return res;
-  }
+  if (auto res = read_calendar(); ErrorParsingOptionalFile(res))
+    return res;
 
-  if (auto res = read_calendar_dates(); res.code != ResultCode::OK)
-  {
-    if (res != ResultCode::ERROR_FILE_ABSENT)
-      return res;
-  }
+  if (auto res = read_calendar_dates(); ErrorParsingOptionalFile(res))
+    return res;
 
-  // Optional files:
-  if (auto res = read_shapes(); res.code != ResultCode::OK)
-  {
-    if (res != ResultCode::ERROR_FILE_ABSENT)
-      return res;
-  }
+  // Read optional files:
+  if (auto res = read_shapes(); ErrorParsingOptionalFile(res))
+    return res;
 
-  if (auto res = read_transfers(); res.code != ResultCode::OK)
-  {
-    if (res != ResultCode::ERROR_FILE_ABSENT)
-      return res;
-  }
+  if (auto res = read_transfers(); ErrorParsingOptionalFile(res))
+    return res;
 
-  if (auto res = read_frequencies(); res.code != ResultCode::OK)
-  {
-    if (res != ResultCode::ERROR_FILE_ABSENT)
-      return res;
-  }
+  if (auto res = read_frequencies(); ErrorParsingOptionalFile(res))
+    return res;
 
-  // TODO Read other conditionally optional and optional files
+  if (auto res = read_fare_attributes(); ErrorParsingOptionalFile(res))
+    return res;
+
+  if (auto res = read_fare_rules(); ErrorParsingOptionalFile(res))
+    return res;
+
+  if (auto res = read_pathways(); ErrorParsingOptionalFile(res))
+    return res;
+
+  if (auto res = read_levels(); ErrorParsingOptionalFile(res))
+    return res;
+
+  if (auto res = read_attributions(); ErrorParsingOptionalFile(res))
+    return res;
+
+  if (auto res = read_feed_info(); ErrorParsingOptionalFile(res))
+    return res;
+
+  if (auto res = read_translations(); ErrorParsingOptionalFile(res))
+    return res;
 
   return {ResultCode::OK, {}};
 }
@@ -1101,7 +1115,7 @@ inline Result Feed::write_feed(const std::string & gtfs_path) const
   return {};
 }
 
-inline std::string get_value_or_default(ParsedCsvRow const & container, const std::string & key,
+inline std::string get_value_or_default(const ParsedCsvRow & container, const std::string & key,
                                         const std::string & default_value = "")
 {
   const auto it = container.find(key);
@@ -1112,7 +1126,7 @@ inline std::string get_value_or_default(ParsedCsvRow const & container, const st
 }
 
 template <class T>
-inline void set_field(T & field, ParsedCsvRow const & container, const std::string & key,
+inline void set_field(T & field, const ParsedCsvRow & container, const std::string & key,
                       bool is_optional = true)
 {
   const std::string key_str = get_value_or_default(container, key);
@@ -1120,7 +1134,7 @@ inline void set_field(T & field, ParsedCsvRow const & container, const std::stri
     field = static_cast<T>(std::stoi(key_str));
 }
 
-inline bool set_fractional(double & field, ParsedCsvRow const & container, const std::string & key,
+inline bool set_fractional(double & field, const ParsedCsvRow & container, const std::string & key,
                            bool is_optional = true)
 {
   const std::string key_str = get_value_or_default(container, key);
@@ -1142,7 +1156,7 @@ inline void check_coordinates(double latitude, double longitude)
     throw std::out_of_range("Longitude");
 }
 
-inline Result Feed::add_agency(ParsedCsvRow const & row)
+inline Result Feed::add_agency(const ParsedCsvRow & row)
 {
   Agency agency;
 
@@ -1171,7 +1185,7 @@ inline Result Feed::add_agency(ParsedCsvRow const & row)
   return {ResultCode::OK, {}};
 }
 
-inline Result Feed::add_route(ParsedCsvRow const & row)
+inline Result Feed::add_route(const ParsedCsvRow & row)
 {
   Route route;
 
@@ -1215,7 +1229,7 @@ inline Result Feed::add_route(ParsedCsvRow const & row)
   return {ResultCode::OK, {}};
 }
 
-inline Result Feed::add_shape(ParsedCsvRow const & row)
+inline Result Feed::add_shape(const ParsedCsvRow & row)
 {
   ShapePoint point;
   try
@@ -1246,7 +1260,7 @@ inline Result Feed::add_shape(ParsedCsvRow const & row)
   return {ResultCode::OK, {}};
 }
 
-inline Result Feed::add_trip(ParsedCsvRow const & row)
+inline Result Feed::add_trip(const ParsedCsvRow & row)
 {
   Trip trip;
   try
@@ -1280,7 +1294,7 @@ inline Result Feed::add_trip(ParsedCsvRow const & row)
   return {ResultCode::OK, {}};
 }
 
-inline Result Feed::add_stop(ParsedCsvRow const & row)
+inline Result Feed::add_stop(const ParsedCsvRow & row)
 {
   Stop stop;
 
@@ -1324,7 +1338,7 @@ inline Result Feed::add_stop(ParsedCsvRow const & row)
   return {ResultCode::OK, {}};
 }
 
-inline Result Feed::add_stop_time(ParsedCsvRow const & row)
+inline Result Feed::add_stop_time(const ParsedCsvRow & row)
 {
   StopTime stop_time;
 
@@ -1369,7 +1383,7 @@ inline Result Feed::add_stop_time(ParsedCsvRow const & row)
   return {ResultCode::OK, {}};
 }
 
-inline Result Feed::add_calendar_item(ParsedCsvRow const & row)
+inline Result Feed::add_calendar_item(const ParsedCsvRow & row)
 {
   CalendarItem calendar_item;
   try
@@ -1405,7 +1419,7 @@ inline Result Feed::add_calendar_item(ParsedCsvRow const & row)
   return {ResultCode::OK, {}};
 }
 
-inline Result Feed::add_calendar_date(ParsedCsvRow const & row)
+inline Result Feed::add_calendar_date(const ParsedCsvRow & row)
 {
   CalendarDate calendar_date;
   try
@@ -1433,7 +1447,7 @@ inline Result Feed::add_calendar_date(ParsedCsvRow const & row)
   return {ResultCode::OK, {}};
 }
 
-inline Result Feed::add_transfer(ParsedCsvRow const & row)
+inline Result Feed::add_transfer(const ParsedCsvRow & row)
 {
   Transfer transfer;
   try
@@ -1463,7 +1477,7 @@ inline Result Feed::add_transfer(ParsedCsvRow const & row)
   return {ResultCode::OK, {}};
 }
 
-inline Result Feed::add_frequency(ParsedCsvRow const & row)
+inline Result Feed::add_frequency(const ParsedCsvRow & row)
 {
   Frequency frequency;
   try
@@ -1491,6 +1505,263 @@ inline Result Feed::add_frequency(ParsedCsvRow const & row)
   }
 
   frequencies.emplace_back(frequency);
+  return {ResultCode::OK, {}};
+}
+
+inline Result Feed::add_fare_attributes(const ParsedCsvRow & row)
+{
+  FareAttributesItem item;
+  try
+  {
+    // Required fields:
+    item.fare_id = row.at("fare_id");
+    set_fractional(item.price, row, "price", false);
+
+    item.currency_type = row.at("currency_type");
+    set_field(item.payment_method, row, "payment_method", false);
+    set_field(item.transfers, row, "transfers", false);
+
+    // Conditionally optional:
+    item.agency_id = get_value_or_default(row, "agency_id");
+    set_field(item.transfer_duration, row, "transfer_duration");
+  }
+  catch (const std::out_of_range & ex)
+  {
+    return {ResultCode::ERROR_REQUIRED_FIELD_ABSENT, ex.what()};
+  }
+  catch (const std::invalid_argument & ex)
+  {
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
+  }
+  catch (const InvalidFieldFormat & ex)
+  {
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
+  }
+
+  fare_attributes.emplace_back(item);
+  return {ResultCode::OK, {}};
+}
+
+inline Result Feed::add_fare_rule(const ParsedCsvRow & row)
+{
+  FareRule fare_rule;
+  try
+  {
+    // Required fields:
+    fare_rule.fare_id = row.at("fare_id");
+  }
+  catch (const std::out_of_range & ex)
+  {
+    return {ResultCode::ERROR_REQUIRED_FIELD_ABSENT, ex.what()};
+  }
+  catch (const std::invalid_argument & ex)
+  {
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
+  }
+  catch (const InvalidFieldFormat & ex)
+  {
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
+  }
+
+  // Optional fields:
+  fare_rule.route_id = get_value_or_default(row, "route_id");
+  fare_rule.origin_id = get_value_or_default(row, "origin_id");
+  fare_rule.destination_id = get_value_or_default(row, "destination_id");
+  fare_rule.contains_id = get_value_or_default(row, "contains_id");
+
+  fare_rules.emplace_back(fare_rule);
+
+  return {ResultCode::OK, {}};
+}
+
+inline Result Feed::add_pathway(const ParsedCsvRow & row)
+{
+  Pathway path;
+  try
+  {
+    // Required fields:
+    path.pathway_id = row.at("pathway_id");
+    path.from_stop_id = row.at("from_stop_id");
+    path.to_stop_id = row.at("to_stop_id");
+    set_field(path.pathway_mode, row, "pathway_mode", false);
+    set_field(path.is_bidirectional, row, "is_bidirectional", false);
+
+    // Optional fields:
+    set_fractional(path.length, row, "length");
+    set_field(path.traversal_time, row, "traversal_time");
+    set_field(path.stair_count, row, "stair_count");
+    set_fractional(path.max_slope, row, "max_slope");
+    set_fractional(path.min_width, row, "min_width");
+  }
+  catch (const std::out_of_range & ex)
+  {
+    return {ResultCode::ERROR_REQUIRED_FIELD_ABSENT, ex.what()};
+  }
+  catch (const std::invalid_argument & ex)
+  {
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
+  }
+  catch (const InvalidFieldFormat & ex)
+  {
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
+  }
+
+  path.signposted_as = get_value_or_default(row, "signposted_as");
+  path.reversed_signposted_as = get_value_or_default(row, "reversed_signposted_as");
+
+  pathways.emplace_back(path);
+  return {ResultCode::OK, {}};
+}
+
+inline Result Feed::add_level(const ParsedCsvRow & row)
+{
+  Level level;
+  try
+  {
+    // Required fields:
+    level.level_id = row.at("level_id");
+
+    set_fractional(level.level_index, row, "level_index", false);
+  }
+  catch (const std::out_of_range & ex)
+  {
+    return {ResultCode::ERROR_REQUIRED_FIELD_ABSENT, ex.what()};
+  }
+  catch (const std::invalid_argument & ex)
+  {
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
+  }
+  catch (const InvalidFieldFormat & ex)
+  {
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
+  }
+
+  // Optional field:
+  level.level_name = get_value_or_default(row, "level_name");
+
+  levels.emplace_back(level);
+
+  return {ResultCode::OK, {}};
+}
+
+inline Result Feed::add_feed_info(const ParsedCsvRow & row)
+{
+  try
+  {
+    // Required fields:
+    feed_info.feed_publisher_name = row.at("feed_publisher_name");
+    feed_info.feed_publisher_url = row.at("feed_publisher_url");
+    feed_info.feed_lang = row.at("feed_lang");
+
+    // Optional fields:
+    feed_info.feed_start_date = Date(get_value_or_default(row, "feed_start_date"));
+    feed_info.feed_end_date = Date(get_value_or_default(row, "feed_end_date"));
+  }
+  catch (const std::out_of_range & ex)
+  {
+    return {ResultCode::ERROR_REQUIRED_FIELD_ABSENT, ex.what()};
+  }
+  catch (const std::invalid_argument & ex)
+  {
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
+  }
+  catch (const InvalidFieldFormat & ex)
+  {
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
+  }
+
+  // Optional fields:
+  feed_info.feed_version = get_value_or_default(row, "feed_version");
+  feed_info.feed_contact_email = get_value_or_default(row, "feed_contact_email");
+  feed_info.feed_contact_url = get_value_or_default(row, "feed_contact_url");
+
+  return {ResultCode::OK, {}};
+}
+
+inline Result Feed::add_translation(const ParsedCsvRow & row)
+{
+  static std::vector<Text> available_tables{"agency", "stops", "routes", "trips",
+                                            "stop_times", "pathways", "levels"};
+
+  Translation translation;
+
+  try
+  {
+    // Required fields:
+    translation.table_name = row.at("table_name");
+    if (std::find(available_tables.begin(), available_tables.end(), translation.table_name) ==
+        available_tables.end())
+    {
+      throw InvalidFieldFormat("Field table_name of translations doesn't have required value");
+    }
+
+    translation.field_name = row.at("field_name");
+    translation.language = row.at("language");
+    translation.translation = row.at("translation");
+
+    // Conditionally required:
+    translation.record_id = get_value_or_default(row, "record_id");
+    translation.record_sub_id = get_value_or_default(row, "record_sub_id");
+  }
+  catch (const std::out_of_range & ex)
+  {
+    return {ResultCode::ERROR_REQUIRED_FIELD_ABSENT, ex.what()};
+  }
+  catch (const std::invalid_argument & ex)
+  {
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
+  }
+  catch (const InvalidFieldFormat & ex)
+  {
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
+  }
+
+  // Conditionally required:
+  translation.field_value = get_value_or_default(row, "field_value");
+
+  translations.emplace_back(translation);
+
+  return {ResultCode::OK, {}};
+}
+
+inline Result Feed::add_attribution(const ParsedCsvRow & row)
+{
+  Attribution attribution;
+
+  try
+  {
+    // Required fields:
+    attribution.organization_name = row.at("organization_name");
+
+    // Optional fields:
+    attribution.attribution_id = get_value_or_default(row, "attribution_id");
+    attribution.agency_id = get_value_or_default(row, "agency_id");
+    attribution.route_id = get_value_or_default(row, "route_id");
+    attribution.trip_id = get_value_or_default(row, "trip_id");
+
+    set_field(attribution.is_producer, row, "is_producer");
+    set_field(attribution.is_operator, row, "is_operator");
+    set_field(attribution.is_authority, row, "is_authority");
+
+    attribution.attribution_url = get_value_or_default(row, "attribution_url");
+    attribution.attribution_email = get_value_or_default(row, "attribution_email");
+    attribution.trip_id = get_value_or_default(row, "attribution_phone");
+  }
+  catch (const std::out_of_range & ex)
+  {
+    return {ResultCode::ERROR_REQUIRED_FIELD_ABSENT, ex.what()};
+  }
+  catch (const std::invalid_argument & ex)
+  {
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
+  }
+  catch (const InvalidFieldFormat & ex)
+  {
+    return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
+  }
+
+  attributions.emplace_back(attribution);
+
   return {ResultCode::OK, {}};
 }
 
@@ -1712,25 +1983,50 @@ inline void Feed::add_calendar_date(const CalendarDate & calendar_date)
 
 inline Result Feed::read_fare_rules()
 {
-  // TODO Read csv
-  return {};
+  auto handler = [this](const ParsedCsvRow & record) { return this->add_fare_rule(record); };
+  return parse_csv("fare_rules.txt", handler);
 }
 
 inline const FareRules & Feed::get_fare_rules() const { return fare_rules; }
 
-inline std::optional<FareRule> Feed::get_fare_rule(const Id & fare_id) const
+inline FareRules Feed::get_fare_rules(const Id & fare_id) const
 {
-  const auto it =
-      std::find_if(fare_rules.begin(), fare_rules.end(),
-                   [&fare_id](const FareRule & fare_rule) { return fare_rule.fare_id == fare_id; });
+  FareRules res;
+  for (const auto & fare_rule : fare_rules)
+  {
+    if (fare_rule.fare_id == fare_id)
+      res.emplace_back(fare_rule);
+  }
 
-  if (it == fare_rules.end())
-    return std::nullopt;
-
-  return *it;
+  return res;
 }
 
 inline void Feed::add_fare_rule(const FareRule & fare_rule) { fare_rules.emplace_back(fare_rule); }
+
+inline Result Feed::read_fare_attributes()
+{
+  auto handler = [this](const ParsedCsvRow & record) { return this->add_fare_attributes(record); };
+  return parse_csv("fare_attributes.txt", handler);
+}
+
+inline const FareAttributes & Feed::get_fare_attributes() const { return fare_attributes; }
+
+FareAttributes Feed::get_fare_attributes(const Id & fare_id) const
+{
+  FareAttributes res;
+  for (const auto & attributes : fare_attributes)
+  {
+    if (attributes.fare_id == fare_id)
+      res.emplace_back(attributes);
+  }
+
+  return res;
+}
+
+inline void Feed::add_fare_attributes(const FareAttributesItem & fare_attributes_item)
+{
+  fare_attributes.emplace_back(fare_attributes_item);
+}
 
 inline Result Feed::read_shapes()
 {
@@ -1806,44 +2102,40 @@ inline void Feed::add_transfer(const Transfer & transfer) { transfers.emplace_ba
 
 inline Result Feed::read_pathways()
 {
-  // TODO Read csv
-  return {};
+  auto handler = [this](const ParsedCsvRow & record) { return this->add_pathway(record); };
+  return parse_csv("pathways.txt", handler);
 }
 
 inline const Pathways & Feed::get_pathways() const { return pathways; }
 
-inline std::optional<Pathway> Feed::get_pathway(const Id & pathway_id) const
+inline Pathways Feed::get_pathways(const Id & pathway_id) const
 {
-  const auto it = std::find_if(
-      pathways.begin(), pathways.end(),
-      [&pathway_id](const Pathway & pathway) { return pathway.pathway_d == pathway_id; });
-
-  if (it == pathways.end())
-    return std::nullopt;
-
-  return *it;
+  Pathways res;
+  for (const auto & path : pathways)
+  {
+    if (path.pathway_id == pathway_id)
+      res.emplace_back(path);
+  }
+  return res;
 }
 
-inline std::optional<Pathway> Feed::get_pathway(const Id & from_stop_id,
-                                                const Id & to_stop_id) const
+inline Pathways Feed::get_pathways(const Id & from_stop_id, const Id & to_stop_id) const
 {
-  const auto it = std::find_if(
-      pathways.begin(), pathways.end(), [&from_stop_id, &to_stop_id](const Pathway & pathway) {
-        return pathway.from_stop_id == from_stop_id && pathway.to_stop_id == to_stop_id;
-      });
-
-  if (it == pathways.end())
-    return std::nullopt;
-
-  return *it;
+  Pathways res;
+  for (const auto & path : pathways)
+  {
+    if (path.from_stop_id == from_stop_id && path.to_stop_id == to_stop_id)
+      res.emplace_back(path);
+  }
+  return res;
 }
 
 inline void Feed::add_pathway(const Pathway & pathway) { pathways.emplace_back(pathway); }
 
 inline Result Feed::read_levels()
 {
-  // TODO Read csv
-  return {};
+  auto handler = [this](const ParsedCsvRow & record) { return this->add_level(record); };
+  return parse_csv("levels.txt", handler);
 }
 
 inline const Levels & Feed::get_levels() const { return levels; }
@@ -1864,8 +2156,8 @@ inline void Feed::add_level(const Level & level) { levels.emplace_back(level); }
 
 inline Result Feed::read_feed_info()
 {
-  // TODO Read csv
-  return {};
+  auto handler = [this](const ParsedCsvRow & record) { return this->add_feed_info(record); };
+  return parse_csv("feed_info.txt", handler);
 }
 
 inline FeedInfo Feed::get_feed_info() const { return feed_info; }
@@ -1874,23 +2166,21 @@ inline void Feed::set_feed_info(const FeedInfo & info) { feed_info = info; }
 
 inline Result Feed::read_translations()
 {
-  // TODO Read csv
-  return {};
+  auto handler = [this](const ParsedCsvRow & record) { return this->add_translation(record); };
+  return parse_csv("translations.txt", handler);
 }
 
 inline const Translations & Feed::get_translations() const { return translations; }
 
-inline std::optional<Translation> Feed::get_translation(const TranslationTable & table_name) const
+inline Translations Feed::get_translations(const Text & table_name) const
 {
-  const auto it = std::find_if(translations.begin(), translations.end(),
-                               [&table_name](const Translation & translation) {
-                                 return translation.table_name == table_name;
-                               });
-
-  if (it == translations.end())
-    return std::nullopt;
-
-  return *it;
+  Translations res;
+  for (const auto & translation : translations)
+  {
+    if (translation.table_name == table_name)
+      res.emplace_back(translation);
+  }
+  return res;
 }
 
 inline void Feed::add_translation(const Translation & translation)
@@ -1900,8 +2190,8 @@ inline void Feed::add_translation(const Translation & translation)
 
 inline Result Feed::read_attributions()
 {
-  // TODO Read csv
-  return {};
+  auto handler = [this](const ParsedCsvRow & record) { return this->add_attribution(record); };
+  return parse_csv("attributions.txt", handler);
 }
 
 inline const Attributions & Feed::get_attributions() const { return attributions; }
