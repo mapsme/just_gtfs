@@ -1,4 +1,4 @@
-# just_gtfs - header-only modern C++ GTFS parsing library
+# just_gtfs - header-only modern C++ library for reading and writing GTFS feeds
 
 [![GTFS parser for C++](https://github.com/mapsme/just_gtfs/blob/add-the-most-important-readers/docs/logo.jpeg)](https://github.com/mapsme/just_gtfs)
 
@@ -7,20 +7,23 @@
 ![](https://github.com/mapsme/just_gtfs/workflows/C%2FC%2B%2B%20CI/badge.svg)
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/mapsme/just_gtfs/issues)
 
+ - Fast reading and writing of GTFS feeds
+ - Supports [extended GTFS route types](https://developers.google.com/transit/gtfs/reference/extended-route-types)
  - Header-only
  - C++17
  - Tested on GCC and Clang
  - STL-compatible containers
- - Fast reading and parsing of GTFS feeds
-
+ 
 ## Table of Contents
 - [Working with GTFS feeds](#working-with-gtfs-feeds)
-- [How to use just_library](#how-to-use-it)
+- [How to use library](#how-to-use-library)
 - [Used third-party tools](#used-third-party-tools)
+- [Contributing](#contributing)
+- [Resources](#resources)
 
 ## Working with GTFS feeds
-The library implements reading static transit data in GTFS - [General Transit Feed Specification](https://developers.google.com/transit/gtfs/reference).
-It provides class for working with GTFS feeds: `gtfs::Feed`.
+The library implements reading and writing static transit data in GTFS - [General Transit Feed Specification](https://developers.google.com/transit/gtfs/reference).
+It provides main class `gtfs::Feed` for working with GTFS feeds and classes for each of 17 GTFS entities: `Route`, `Stop`, `Pathway`, `Translation` and others.
 GTFS csv files are mapped to the corresponding C++ classes. Every GTFS entity can be accessed through `gtfs::Feed`.
 
 :pushpin: Example of providing `gtfs::Feed` the feed path, reading it and working with GTFS entities such as stops and routes:
@@ -52,7 +55,7 @@ if (feed.read_shapes() == ResultCode::OK)
 ```
 
 
-## Methods for reading and writing GTFS entities
+### Methods for reading and writing GTFS entities
 Methods of the `Feed` class for working with agencies:
 
 Read agencies from the corresponding csv file.
@@ -93,6 +96,7 @@ Or you can find stop times for the particular trip:
 StopTimes get_stop_times_for_trip(const Id & trip_id, bool sort_by_sequence = true)
 ```
 
+
 ## How to use library
 - For including the library in your own project: just_gtfs is completely contained inside a single header and therefore it is sufficient to copy include/just_gtfs/just_gtfs.h to your include pathes. The library does not have to be explicitly build.
 - For running library tests:
@@ -108,3 +112,11 @@ The library makes use of the C++17 features and therefore you have to use approp
 
 ## Used third-party tools
 - [**doctest**](https://github.com/onqtam/doctest) for unit testing.
+
+## Contributing
+Please open a [Github issue](https://github.com/mapsme/just_gtfs/issues/new) with as much of the information as you're able to specify, or create a [pull request](https://github.com/mapsme/just_gtfs/pulls) according to our [guidelines](https://github.com/mapsme/just_gtfs/blob/master/docs/CPP_STYLE.md).
+
+## Resources
+[GTFS reference in Google GitHub repository](https://github.com/google/transit/blob/master/gtfs/spec/en/reference.md)
+
+[GTFS reference on Google Transit API](https://developers.google.com/transit/gtfs/reference?csw=1)

@@ -1,0 +1,3 @@
+agency_id,agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url,agency_email
+0Id_b^3 Company,"Big Big ""Bus Company""",,,,,b3c.no,b3c@gtfs.com
+kwf,"""killer whale ferries""",,Asia/Tokyo,en,842,f@mail.com,
