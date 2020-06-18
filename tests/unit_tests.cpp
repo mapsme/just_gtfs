@@ -167,6 +167,12 @@ TEST_CASE("Wrapped quotation marks")
   CHECK_EQ(res[0], R"(Contains "quotes", commas and text)");
 }
 
+TEST_CASE("Double wrapped quotation marks")
+{
+  const auto res = CsvParser::split_record(R"(""Double quoted text"")");
+  REQUIRE_EQ(res.size(), 1);
+}
+
 TEST_CASE("Read quoted empty values")
 {
   const auto res = CsvParser::split_record(",\"\"");
@@ -174,7 +180,6 @@ TEST_CASE("Read quoted empty values")
   CHECK_EQ(res[0], "");
   CHECK_EQ(res[1], "");
 }
-
 TEST_SUITE_END();
 
 TEST_SUITE_BEGIN("Read & write");
