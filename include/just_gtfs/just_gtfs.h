@@ -143,9 +143,10 @@ inline std::string unquote_text(const std::string & text)
   }
 
   if (res.size() > 2 && res.front() == quote && res.back() == quote && (quotes_count - 2) % 2 == 0)
-  {
     return res.substr(1, res.size() - 2);
-  }
+
+  if (res == "\"")
+    return {};
 
   return res;
 }
