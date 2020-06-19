@@ -114,8 +114,6 @@ inline std::string unquote_text(const std::string & text)
   bool prev_is_quote = false;
   bool prev_is_skipped = false;
 
-  size_t quotes_count = 0;
-
   size_t start_index = 0;
   size_t end_index = text.size();
 
@@ -136,8 +134,6 @@ inline std::string unquote_text(const std::string & text)
       prev_is_skipped = false;
       continue;
     }
-
-    ++quotes_count;
 
     if (prev_is_quote)
     {
