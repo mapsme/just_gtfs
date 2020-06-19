@@ -6,12 +6,16 @@
 #include <exception>
 #include <fstream>
 #include <functional>
+#include <iomanip>
 #include <istream>
+#include <iterator>
 #include <map>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -19,6 +23,28 @@
 
 namespace gtfs
 {
+// File names and other entities defined in GTFS----------------------------------------------------
+inline const std::string file_agency = "agency.txt";
+inline const std::string file_stops = "stops.txt";
+inline const std::string file_routes = "routes.txt";
+inline const std::string file_trips = "trips.txt";
+inline const std::string file_stop_times = "stop_times.txt";
+inline const std::string file_calendar = "calendar.txt";
+inline const std::string file_calendar_dates = "calendar_dates.txt";
+inline const std::string file_fare_attributes = "fare_attributes.txt";
+inline const std::string file_fare_rules = "fare_rules.txt";
+inline const std::string file_shapes = "shapes.txt";
+inline const std::string file_frequencies = "frequencies.txt";
+inline const std::string file_transfers = "transfers.txt";
+inline const std::string file_pathways = "pathways.txt";
+inline const std::string file_levels = "levels.txt";
+inline const std::string file_feed_info = "feed_info.txt";
+inline const std::string file_translations = "translations.txt";
+inline const std::string file_attributions = "attributions.txt";
+
+inline constexpr char csv_separator = ',';
+inline constexpr char quote = '"';
+
 // Helper classes and functions---------------------------------------------------------------------
 struct InvalidFieldFormat : public std::exception
 {
@@ -46,12 +72,245 @@ using Message = std::string;
 
 struct Result
 {
-  ResultCode code = OK;
-  Message message;
-
+  Result() = default;
+  Result(ResultCode && in_code) : code(in_code) {}
+  Result(const ResultCode & in_code, const Message & msg) : code(in_code), message(msg) {}
   bool operator==(ResultCode result_code) const { return code == result_code; }
   bool operator!=(ResultCode result_code) const { return !(*this == result_code); }
+
+  ResultCode code = OK;
+  Message message;
 };
+
+inline std::string add_trailing_slash(const std::string & path)
+{
+  auto extended_path = path;
+  if (!extended_path.empty() && extended_path.back() != '/')
+    extended_path += "/";
+  return extended_path;
+}
+
+inline void write_joined(std::ofstream & out, std::vector<std::string> && elements)
+{
+  for (size_t i = 0; i < elements.size(); ++i)
+  {
+    out << elements[i];
+    if (i != elements.size() - 1)
+      out << csv_separator;
+  }
+  out << std::endl;
+}
+
+inline std::string quote_text(const std::string & text)
+{
+  std::stringstream stream;
+  stream << std::quoted(text, quote, quote);
+  return stream.str();
+}
+
+inline std::string unquote_text(const std::string & text)
+{
+  std::string res;
+  bool prev_is_quote = false;
+  bool prev_is_skipped = false;
+
+  size_t start_index = 0;
+  size_t end_index = text.size();
+
+  // Field values that contain quotation marks or commas must be enclosed within quotation marks.
+  if (text.size() > 1 && text.front() == quote && text.back() == quote)
+  {
+    ++start_index;
+    --end_index;
+  }
+
+  // In addition, each quotation mark in the field value must be preceded with a quotation mark.
+  for (size_t i = start_index; i < end_index; ++i)
+  {
+    if (text[i] != quote)
+    {
+      res += text[i];
+      prev_is_quote = false;
+      prev_is_skipped = false;
+      continue;
+    }
+
+    if (prev_is_quote)
+    {
+      if (prev_is_skipped)
+        res += text[i];
+
+      prev_is_skipped = !prev_is_skipped;
+    }
+    else
+    {
+      prev_is_quote = true;
+      res += text[i];
+    }
+  }
+
+  return res;
+}
+
+// Csv field values that contain quotation marks or commas must be enclosed within quotation marks.
+inline std::string wrap(const std::string & text)
+{
+  static const std::string symbols = std::string(1, quote) + std::string(1, csv_separator);
+
+  if (text.find_first_of(symbols) == std::string::npos)
+    return text;
+
+  return quote_text(text);
+}
+
+// Save to csv enum value as unsigned integer.
+template <typename T>
+std::enable_if_t<std::is_integral<T>::value || std::is_enum<T>::value, std::string> wrap(
+    const T & val)
+{
+  return std::to_string(static_cast<int>(val));
+}
+
+// Save to csv coordinates with custom precision.
+inline std::string wrap(double val)
+{
+  std::ostringstream stream;
+  stream << std::fixed << std::setprecision(6);
+  stream << val;
+  return stream.str();
+}
+
+inline void write_agency_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {"agency_id",       "agency_name", "agency_url",
+                                     "agency_timezone", "agency_lang", "agency_phone",
+                                     "agency_fare_url", "agency_email"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_routes_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {
+      "route_id",         "agency_id",        "route_short_name",  "route_long_name",
+      "route_desc",       "route_type",       "route_url",         "route_color",
+      "route_text_color", "route_sort_order", "continuous_pickup", "continuous_drop_off"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_shapes_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {"shape_id", "shape_pt_lat", "shape_pt_lon",
+                                     "shape_pt_sequence"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_trips_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {
+      "route_id",     "service_id", "trip_id",  "trip_headsign",         "trip_short_name",
+      "direction_id", "block_id",   "shape_id", "wheelchair_accessible", "bikes_allowed"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_stops_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {"stop_id",        "stop_code",     "stop_name",
+                                     "stop_desc",      "stop_lat",      "stop_lon",
+                                     "zone_id",        "stop_url",      "location_type",
+                                     "parent_station", "stop_timezone", "wheelchair_boarding",
+                                     "level_id",       "platform_code"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_stop_times_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {
+      "trip_id",           "arrival_time",        "departure_time",      "stop_id",
+      "stop_sequence",     "stop_headsign",       "pickup_type",         "drop_off_type",
+      "continuous_pickup", "continuous_drop_off", "shape_dist_traveled", "timepoint"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_calendar_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {"service_id", "monday",   "tuesday", "wednesday",  "thursday",
+                                     "friday",     "saturday", "sunday",  "start_date", "end_date"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_calendar_dates_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {"service_id", "date", "exception_type"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_transfers_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {"from_stop_id", "to_stop_id", "transfer_type",
+                                     "min_transfer_time"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_frequencies_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {"trip_id", "start_time", "end_time", "headway_secs",
+                                     "exact_times"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_fare_attributes_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {"fare_id",   "price",     "currency_type",    "payment_method",
+                                     "transfers", "agency_id", "transfer_duration"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_fare_rules_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {"fare_id", "route_id", "origin_id", "destination_id",
+                                     "contains_id"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_pathways_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {
+      "pathway_id",       "from_stop_id", "to_stop_id",     "pathway_mode",
+      "is_bidirectional", "length",       "traversal_time", "stair_count",
+      "max_slope",        "min_width",    "signposted_as",  "reversed_signposted_as"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_levels_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {"level_id", "level_index", "level_name"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_feed_info_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {
+      "feed_publisher_name", "feed_publisher_url", "feed_lang",
+      "default_lang",        "feed_start_date",    "feed_end_date",
+      "feed_version",        "feed_contact_email", "feed_contact_url"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_translations_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {"table_name", "field_name",    "language",   "translation",
+                                     "record_id",  "record_sub_id", "field_value"};
+  write_joined(out, std::move(fields));
+}
+
+inline void write_attributions_header(std::ofstream & out)
+{
+  std::vector<std::string> fields = {"attribution_id",    "agency_id",         "route_id",
+                                     "trip_id",           "organization_name", "is_producer",
+                                     "is_operator",       "is_authority",      "attribution_url",
+                                     "attribution_email", "attribution_phone"};
+  write_joined(out, std::move(fields));
+}
 
 // Csv parser  -------------------------------------------------------------------------------------
 class CsvParser
@@ -70,15 +329,25 @@ private:
   std::vector<std::string> field_sequence;
   std::string gtfs_path;
   std::ifstream csv_stream;
-  static const char delimiter = ',';
 };
 
 inline CsvParser::CsvParser(const std::string & gtfs_directory) : gtfs_path(gtfs_directory) {}
 
-inline void trim_spaces(std::string & token)
+inline std::string trim_spaces(const std::string & token)
 {
-  while (!token.empty() && token.back() == ' ')
-    token.pop_back();
+  static const std::string delimiters = " \t";
+  std::string res = token;
+  res.erase(0, res.find_first_not_of(delimiters));
+  res.erase(res.find_last_not_of(delimiters) + 1);
+  return res;
+}
+
+inline std::string normalize(std::string & token, bool has_quotes)
+{
+  std::string res = trim_spaces(token);
+  if (has_quotes)
+    return unquote_text(res);
+  return res;
 }
 
 inline std::vector<std::string> CsvParser::split_record(const std::string & record, bool is_header)
@@ -90,43 +359,37 @@ inline std::vector<std::string> CsvParser::split_record(const std::string & reco
     if (record.size() > 2 && record[0] == '\xef' && record[1] == '\xbb' && record[2] == '\xbf')
       start_index = 3;
   }
+
   std::vector<std::string> fields;
   fields.reserve(20);
 
   std::string token;
   token.reserve(record.size());
 
-  size_t token_start_index = start_index;
   bool is_inside_quotes = false;
+  bool quotes_in_token = false;
 
   for (size_t i = start_index; i < record.size(); ++i)
   {
-    if (record[i] == '"')
+    if (record[i] == quote)
     {
       is_inside_quotes = !is_inside_quotes;
+      quotes_in_token = true;
+      token += record[i];
       continue;
     }
 
-    if (record[i] == ' ')
-    {
-      if (token_start_index == i)
-        token_start_index = i + 1;
-      else
-        token += record[i];
-      continue;
-    }
-
-    if (record[i] == delimiter)
+    if (record[i] == csv_separator)
     {
       if (is_inside_quotes)
       {
         token += record[i];
         continue;
       }
-      token_start_index = i + 1;
-      trim_spaces(token);
-      fields.emplace_back(token);
+
+      fields.emplace_back(normalize(token, quotes_in_token));
       token.clear();
+      quotes_in_token = false;
       continue;
     }
 
@@ -135,8 +398,7 @@ inline std::vector<std::string> CsvParser::split_record(const std::string & reco
       token += record[i];
   }
 
-  trim_spaces(token);
-  fields.emplace_back(token);
+  fields.emplace_back(normalize(token, quotes_in_token));
   return fields;
 }
 
@@ -154,7 +416,7 @@ inline Result CsvParser::read_header(const std::string & csv_filename)
     return {ResultCode::ERROR_INVALID_FIELD_FORMAT, "Empty header in file " + csv_filename};
 
   field_sequence = split_record(header, true);
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result CsvParser::read_row(std::map<std::string, std::string> & obj)
@@ -165,7 +427,7 @@ inline Result CsvParser::read_row(std::map<std::string, std::string> & obj)
     return {ResultCode::END_OF_FILE, {}};
 
   if (row == "\r")
-    return {ResultCode::OK, {}};
+    return ResultCode::OK;
 
   const std::vector<std::string> fields_values = split_record(row);
 
@@ -176,7 +438,7 @@ inline Result CsvParser::read_row(std::map<std::string, std::string> & obj)
   for (size_t i = 0; i < fields_count; ++i)
     obj[field_sequence[i]] = fields_values[i];
 
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 // Custom types for GTFS fields --------------------------------------------------------------------
@@ -599,6 +861,14 @@ struct Agency
   Text agency_email;
 };
 
+inline bool operator==(const Agency & lhs, const Agency & rhs)
+{
+  return std::tie(lhs.agency_id, lhs.agency_name, lhs.agency_url, lhs.agency_timezone,
+                  lhs.agency_lang, lhs.agency_phone, lhs.agency_fare_url, lhs.agency_email) ==
+         std::tie(rhs.agency_id, rhs.agency_name, rhs.agency_url, rhs.agency_timezone,
+                  rhs.agency_lang, rhs.agency_phone, rhs.agency_fare_url, rhs.agency_email);
+}
+
 // Required dataset file
 struct Stop
 {
@@ -905,97 +1175,134 @@ public:
   inline explicit Feed(const std::string & gtfs_path);
 
   inline Result read_feed();
-
-  inline Result write_feed(const std::string & gtfs_path = {}) const;
+  inline Result write_feed(const std::string & gtfs_path) const;
 
   inline Result read_agencies();
+  inline Result write_agencies(const std::string & gtfs_path) const;
+
   inline const Agencies & get_agencies() const;
   inline std::optional<Agency> get_agency(const Id & agency_id) const;
   inline void add_agency(const Agency & agency);
 
   inline Result read_stops();
+  inline Result write_stops(const std::string & gtfs_path) const;
+
   inline const Stops & get_stops() const;
   inline std::optional<Stop> get_stop(const Id & stop_id) const;
   inline void add_stop(const Stop & stop);
 
   inline Result read_routes();
+  inline Result write_routes(const std::string & gtfs_path) const;
+
   inline const Routes & get_routes() const;
   inline std::optional<Route> get_route(const Id & route_id) const;
   inline void add_route(const Route & route);
 
   inline Result read_trips();
+  inline Result write_trips(const std::string & gtfs_path) const;
+
   inline const Trips & get_trips() const;
   inline std::optional<Trip> get_trip(const Id & trip_id) const;
   inline void add_trip(const Trip & trip);
 
   inline Result read_stop_times();
+  inline Result write_stop_times(const std::string & gtfs_path) const;
+
   inline const StopTimes & get_stop_times() const;
   inline StopTimes get_stop_times_for_stop(const Id & stop_id) const;
   inline StopTimes get_stop_times_for_trip(const Id & trip_id, bool sort_by_sequence = true) const;
   inline void add_stop_time(const StopTime & stop_time);
 
   inline Result read_calendar();
+  inline Result write_calendar(const std::string & gtfs_path) const;
+
   inline const Calendar & get_calendar() const;
   inline std::optional<CalendarItem> get_calendar(const Id & service_id) const;
   inline void add_calendar_item(const CalendarItem & calendar_item);
 
   inline Result read_calendar_dates();
+  inline Result write_calendar_dates(const std::string & gtfs_path) const;
+
   inline const CalendarDates & get_calendar_dates() const;
   inline CalendarDates get_calendar_dates(const Id & service_id, bool sort_by_date = true) const;
   inline void add_calendar_date(const CalendarDate & calendar_date);
 
   inline Result read_fare_rules();
+  inline Result write_fare_rules(const std::string & gtfs_path) const;
+
   inline const FareRules & get_fare_rules() const;
   inline FareRules get_fare_rules(const Id & fare_id) const;
   inline void add_fare_rule(const FareRule & fare_rule);
 
   inline Result read_fare_attributes();
+  inline Result write_fare_attributes(const std::string & gtfs_path) const;
+
   inline const FareAttributes & get_fare_attributes() const;
   inline FareAttributes get_fare_attributes(const Id & fare_id) const;
   inline void add_fare_attributes(const FareAttributesItem & fare_attributes_item);
 
   inline Result read_shapes();
+  inline Result write_shapes(const std::string & gtfs_path) const;
+
   inline const Shapes & get_shapes() const;
   inline Shape get_shape(const Id & shape_id, bool sort_by_sequence = true) const;
   inline void add_shape(const ShapePoint & shape);
 
   inline Result read_frequencies();
+  inline Result write_frequencies(const std::string & gtfs_path) const;
+
   inline const Frequencies & get_frequencies() const;
   inline Frequencies get_frequencies(const Id & trip_id) const;
   inline void add_frequency(const Frequency & frequency);
 
   inline Result read_transfers();
+  inline Result write_transfers(const std::string & gtfs_path) const;
+
   inline const Transfers & get_transfers() const;
   inline std::optional<Transfer> get_transfer(const Id & from_stop_id, const Id & to_stop_id) const;
   inline void add_transfer(const Transfer & transfer);
 
   inline Result read_pathways();
+  inline Result write_pathways(const std::string & gtfs_path) const;
+
   inline const Pathways & get_pathways() const;
   inline Pathways get_pathways(const Id & pathway_id) const;
   inline Pathways get_pathways(const Id & from_stop_id, const Id & to_stop_id) const;
   inline void add_pathway(const Pathway & pathway);
 
   inline Result read_levels();
+  inline Result write_levels(const std::string & gtfs_path) const;
+
   inline const Levels & get_levels() const;
   inline std::optional<Level> get_level(const Id & level_id) const;
   inline void add_level(const Level & level);
 
   inline Result read_feed_info();
+  inline Result write_feed_info(const std::string & gtfs_path) const;
+
   inline FeedInfo get_feed_info() const;
   inline void set_feed_info(const FeedInfo & feed_info);
 
   inline Result read_translations();
+  inline Result write_translations(const std::string & gtfs_path) const;
+
   inline const Translations & get_translations() const;
   inline Translations get_translations(const Text & table_name) const;
   inline void add_translation(const Translation & translation);
 
   inline Result read_attributions();
+  inline Result write_attributions(const std::string & gtfs_path) const;
+
   inline const Attributions & get_attributions() const;
   inline void add_attribution(const Attribution & attribution);
 
 private:
   inline Result parse_csv(const std::string & filename,
                           const std::function<Result(const ParsedCsvRow & record)> & add_entity);
+
+  inline Result write_csv(const std::string & path, const std::string & file,
+                          const std::function<void(std::ofstream & out)> & write_header,
+                          const std::function<void(std::ofstream & out)> & write_entities) const;
 
   inline Result add_agency(const ParsedCsvRow & row);
   inline Result add_route(const ParsedCsvRow & row);
@@ -1014,6 +1321,24 @@ private:
   inline Result add_feed_info(const ParsedCsvRow & row);
   inline Result add_translation(const ParsedCsvRow & row);
   inline Result add_attribution(const ParsedCsvRow & row);
+
+  inline void write_agencies(std::ofstream & out) const;
+  inline void write_routes(std::ofstream & out) const;
+  inline void write_shapes(std::ofstream & out) const;
+  inline void write_trips(std::ofstream & out) const;
+  inline void write_stops(std::ofstream & out) const;
+  inline void write_stop_times(std::ofstream & out) const;
+  inline void write_calendar(std::ofstream & out) const;
+  inline void write_calendar_dates(std::ofstream & out) const;
+  inline void write_transfers(std::ofstream & out) const;
+  inline void write_frequencies(std::ofstream & out) const;
+  inline void write_fare_attributes(std::ofstream & out) const;
+  inline void write_fare_rules(std::ofstream & out) const;
+  inline void write_pathways(std::ofstream & out) const;
+  inline void write_levels(std::ofstream & out) const;
+  inline void write_feed_info(std::ofstream & out) const;
+  inline void write_translations(std::ofstream & out) const;
+  inline void write_attributions(std::ofstream & out) const;
 
   std::string gtfs_directory;
 
@@ -1037,11 +1362,7 @@ private:
   FeedInfo feed_info;
 };
 
-inline Feed::Feed(const std::string & gtfs_path) : gtfs_directory(gtfs_path)
-{
-  if (!gtfs_directory.empty() && gtfs_directory.back() != '/')
-    gtfs_directory += "/";
-}
+inline Feed::Feed(const std::string & gtfs_path) : gtfs_directory(add_trailing_slash(gtfs_path)) {}
 
 inline bool ErrorParsingOptionalFile(const Result & res)
 {
@@ -1104,7 +1425,7 @@ inline Result Feed::read_feed()
   if (auto res = read_translations(); ErrorParsingOptionalFile(res))
     return res;
 
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::write_feed(const std::string & gtfs_path) const
@@ -1182,7 +1503,7 @@ inline Result Feed::add_agency(const ParsedCsvRow & row)
   agency.agency_email = get_value_or_default(row, "agency_email");
 
   agencies.emplace_back(agency);
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_route(const ParsedCsvRow & row)
@@ -1226,7 +1547,7 @@ inline Result Feed::add_route(const ParsedCsvRow & row)
 
   routes.emplace_back(route);
 
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_shape(const ParsedCsvRow & row)
@@ -1257,7 +1578,7 @@ inline Result Feed::add_shape(const ParsedCsvRow & row)
   }
 
   shapes.emplace_back(point);
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_trip(const ParsedCsvRow & row)
@@ -1291,7 +1612,7 @@ inline Result Feed::add_trip(const ParsedCsvRow & row)
   trip.block_id = get_value_or_default(row, "block_id");
 
   trips.emplace_back(trip);
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_stop(const ParsedCsvRow & row)
@@ -1335,7 +1656,7 @@ inline Result Feed::add_stop(const ParsedCsvRow & row)
 
   stops.emplace_back(stop);
 
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_stop_time(const ParsedCsvRow & row)
@@ -1376,11 +1697,11 @@ inline Result Feed::add_stop_time(const ParsedCsvRow & row)
     return {ResultCode::ERROR_INVALID_FIELD_FORMAT, ex.what()};
   }
 
-  // Optional:
+  // Optional fields:
   stop_time.stop_headsign = get_value_or_default(row, "stop_headsign");
 
   stop_times.emplace_back(stop_time);
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_calendar_item(const ParsedCsvRow & row)
@@ -1416,7 +1737,7 @@ inline Result Feed::add_calendar_item(const ParsedCsvRow & row)
   }
 
   calendar.emplace_back(calendar_item);
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_calendar_date(const ParsedCsvRow & row)
@@ -1444,7 +1765,7 @@ inline Result Feed::add_calendar_date(const ParsedCsvRow & row)
   }
 
   calendar_dates.emplace_back(calendar_date);
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_transfer(const ParsedCsvRow & row)
@@ -1474,7 +1795,7 @@ inline Result Feed::add_transfer(const ParsedCsvRow & row)
   }
 
   transfers.emplace_back(transfer);
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_frequency(const ParsedCsvRow & row)
@@ -1505,7 +1826,7 @@ inline Result Feed::add_frequency(const ParsedCsvRow & row)
   }
 
   frequencies.emplace_back(frequency);
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_fare_attributes(const ParsedCsvRow & row)
@@ -1539,7 +1860,7 @@ inline Result Feed::add_fare_attributes(const ParsedCsvRow & row)
   }
 
   fare_attributes.emplace_back(item);
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_fare_rule(const ParsedCsvRow & row)
@@ -1571,7 +1892,7 @@ inline Result Feed::add_fare_rule(const ParsedCsvRow & row)
 
   fare_rules.emplace_back(fare_rule);
 
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_pathway(const ParsedCsvRow & row)
@@ -1610,7 +1931,7 @@ inline Result Feed::add_pathway(const ParsedCsvRow & row)
   path.reversed_signposted_as = get_value_or_default(row, "reversed_signposted_as");
 
   pathways.emplace_back(path);
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_level(const ParsedCsvRow & row)
@@ -1641,7 +1962,7 @@ inline Result Feed::add_level(const ParsedCsvRow & row)
 
   levels.emplace_back(level);
 
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_feed_info(const ParsedCsvRow & row)
@@ -1675,14 +1996,13 @@ inline Result Feed::add_feed_info(const ParsedCsvRow & row)
   feed_info.feed_contact_email = get_value_or_default(row, "feed_contact_email");
   feed_info.feed_contact_url = get_value_or_default(row, "feed_contact_url");
 
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_translation(const ParsedCsvRow & row)
 {
-  static std::vector<Text> available_tables{"agency", "stops", "routes", "trips",
-                                            "stop_times", "pathways", "levels"};
-
+  static const std::vector<Text> available_tables{"agency",     "stops",    "routes", "trips",
+                                                  "stop_times", "pathways", "levels"};
   Translation translation;
 
   try
@@ -1721,7 +2041,7 @@ inline Result Feed::add_translation(const ParsedCsvRow & row)
 
   translations.emplace_back(translation);
 
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
 }
 
 inline Result Feed::add_attribution(const ParsedCsvRow & row)
@@ -1762,7 +2082,21 @@ inline Result Feed::add_attribution(const ParsedCsvRow & row)
 
   attributions.emplace_back(attribution);
 
-  return {ResultCode::OK, {}};
+  return ResultCode::OK;
+}
+
+inline Result Feed::write_csv(const std::string & path, const std::string & file,
+                              const std::function<void(std::ofstream & out)> & write_header,
+                              const std::function<void(std::ofstream & out)> & write_entities) const
+{
+  const std::string filepath = add_trailing_slash(path) + file;
+  std::ofstream out(filepath);
+  if (!out.is_open())
+    return {ResultCode::ERROR_INVALID_GTFS_PATH, "Could not open path for writing " + filepath};
+
+  write_header(out);
+  write_entities(out);
+  return ResultCode::OK;
 }
 
 inline Result Feed::parse_csv(const std::string & filename,
@@ -1797,7 +2131,13 @@ inline Result Feed::parse_csv(const std::string & filename,
 inline Result Feed::read_agencies()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_agency(record); };
-  return parse_csv("agency.txt", handler);
+  return parse_csv(file_agency, handler);
+}
+
+inline Result Feed::write_agencies(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_agencies(out); };
+  return write_csv(gtfs_path, file_agency, write_agency_header, container_writer);
 }
 
 inline const Agencies & Feed::get_agencies() const { return agencies; }
@@ -1824,7 +2164,13 @@ inline void Feed::add_agency(const Agency & agency) { agencies.emplace_back(agen
 inline Result Feed::read_stops()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_stop(record); };
-  return parse_csv("stops.txt", handler);
+  return parse_csv(file_stops, handler);
+}
+
+inline Result Feed::write_stops(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_stops(out); };
+  return write_csv(gtfs_path, file_stops, write_stops_header, container_writer);
 }
 
 inline const Stops & Feed::get_stops() const { return stops; }
@@ -1845,7 +2191,13 @@ inline void Feed::add_stop(const Stop & stop) { stops.emplace_back(stop); }
 inline Result Feed::read_routes()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_route(record); };
-  return parse_csv("routes.txt", handler);
+  return parse_csv(file_routes, handler);
+}
+
+inline Result Feed::write_routes(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_routes(out); };
+  return write_csv(gtfs_path, file_routes, write_routes_header, container_writer);
 }
 
 inline const Routes & Feed::get_routes() const { return routes; }
@@ -1867,7 +2219,13 @@ inline void Feed::add_route(const Route & route) { routes.emplace_back(route); }
 inline Result Feed::read_trips()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_trip(record); };
-  return parse_csv("trips.txt", handler);
+  return parse_csv(file_trips, handler);
+}
+
+inline Result Feed::write_trips(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_trips(out); };
+  return write_csv(gtfs_path, file_trips, write_trips_header, container_writer);
 }
 
 inline const Trips & Feed::get_trips() const { return trips; }
@@ -1888,7 +2246,13 @@ inline void Feed::add_trip(const Trip & trip) { trips.emplace_back(trip); }
 inline Result Feed::read_stop_times()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_stop_time(record); };
-  return parse_csv("stop_times.txt", handler);
+  return parse_csv(file_stop_times, handler);
+}
+
+inline Result Feed::write_stop_times(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_stop_times(out); };
+  return write_csv(gtfs_path, file_stop_times, write_stop_times_header, container_writer);
 }
 
 inline const StopTimes & Feed::get_stop_times() const { return stop_times; }
@@ -1926,7 +2290,13 @@ inline void Feed::add_stop_time(const StopTime & stop_time) { stop_times.emplace
 inline Result Feed::read_calendar()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_calendar_item(record); };
-  return parse_csv("calendar.txt", handler);
+  return parse_csv(file_calendar, handler);
+}
+
+inline Result Feed::write_calendar(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_calendar(out); };
+  return write_csv(gtfs_path, file_calendar, write_calendar_header, container_writer);
 }
 
 inline const Calendar & Feed::get_calendar() const { return calendar; }
@@ -1952,7 +2322,13 @@ inline void Feed::add_calendar_item(const CalendarItem & calendar_item)
 inline Result Feed::read_calendar_dates()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_calendar_date(record); };
-  return parse_csv("calendar_dates.txt", handler);
+  return parse_csv(file_calendar_dates, handler);
+}
+
+inline Result Feed::write_calendar_dates(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_calendar_dates(out); };
+  return write_csv(gtfs_path, file_calendar_dates, write_calendar_dates_header, container_writer);
 }
 
 inline const CalendarDates & Feed::get_calendar_dates() const { return calendar_dates; }
@@ -1984,7 +2360,13 @@ inline void Feed::add_calendar_date(const CalendarDate & calendar_date)
 inline Result Feed::read_fare_rules()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_fare_rule(record); };
-  return parse_csv("fare_rules.txt", handler);
+  return parse_csv(file_fare_rules, handler);
+}
+
+inline Result Feed::write_fare_rules(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_fare_rules(out); };
+  return write_csv(gtfs_path, file_fare_rules, write_fare_rules_header, container_writer);
 }
 
 inline const FareRules & Feed::get_fare_rules() const { return fare_rules; }
@@ -2006,7 +2388,13 @@ inline void Feed::add_fare_rule(const FareRule & fare_rule) { fare_rules.emplace
 inline Result Feed::read_fare_attributes()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_fare_attributes(record); };
-  return parse_csv("fare_attributes.txt", handler);
+  return parse_csv(file_fare_attributes, handler);
+}
+
+inline Result Feed::write_fare_attributes(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_fare_attributes(out); };
+  return write_csv(gtfs_path, file_fare_attributes, write_fare_attributes_header, container_writer);
 }
 
 inline const FareAttributes & Feed::get_fare_attributes() const { return fare_attributes; }
@@ -2031,7 +2419,13 @@ inline void Feed::add_fare_attributes(const FareAttributesItem & fare_attributes
 inline Result Feed::read_shapes()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_shape(record); };
-  return parse_csv("shapes.txt", handler);
+  return parse_csv(file_shapes, handler);
+}
+
+inline Result Feed::write_shapes(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_shapes(out); };
+  return write_csv(gtfs_path, file_shapes, write_shapes_header, container_writer);
 }
 
 inline const Shapes & Feed::get_shapes() const { return shapes; }
@@ -2058,7 +2452,13 @@ inline void Feed::add_shape(const ShapePoint & shape) { shapes.emplace_back(shap
 inline Result Feed::read_frequencies()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_frequency(record); };
-  return parse_csv("frequencies.txt", handler);
+  return parse_csv(file_frequencies, handler);
+}
+
+inline Result Feed::write_frequencies(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_frequencies(out); };
+  return write_csv(gtfs_path, file_frequencies, write_frequencies_header, container_writer);
 }
 
 inline const Frequencies & Feed::get_frequencies() const { return frequencies; }
@@ -2079,7 +2479,13 @@ inline void Feed::add_frequency(const Frequency & frequency) { frequencies.empla
 inline Result Feed::read_transfers()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_transfer(record); };
-  return parse_csv("transfers.txt", handler);
+  return parse_csv(file_transfers, handler);
+}
+
+inline Result Feed::write_transfers(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_transfers(out); };
+  return write_csv(gtfs_path, file_transfers, write_transfers_header, container_writer);
 }
 
 inline const Transfers & Feed::get_transfers() const { return transfers; }
@@ -2103,7 +2509,13 @@ inline void Feed::add_transfer(const Transfer & transfer) { transfers.emplace_ba
 inline Result Feed::read_pathways()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_pathway(record); };
-  return parse_csv("pathways.txt", handler);
+  return parse_csv(file_pathways, handler);
+}
+
+inline Result Feed::write_pathways(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_pathways(out); };
+  return write_csv(gtfs_path, file_pathways, write_pathways_header, container_writer);
 }
 
 inline const Pathways & Feed::get_pathways() const { return pathways; }
@@ -2135,7 +2547,13 @@ inline void Feed::add_pathway(const Pathway & pathway) { pathways.emplace_back(p
 inline Result Feed::read_levels()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_level(record); };
-  return parse_csv("levels.txt", handler);
+  return parse_csv(file_levels, handler);
+}
+
+inline Result Feed::write_levels(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_levels(out); };
+  return write_csv(gtfs_path, file_levels, write_levels_header, container_writer);
 }
 
 inline const Levels & Feed::get_levels() const { return levels; }
@@ -2157,7 +2575,13 @@ inline void Feed::add_level(const Level & level) { levels.emplace_back(level); }
 inline Result Feed::read_feed_info()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_feed_info(record); };
-  return parse_csv("feed_info.txt", handler);
+  return parse_csv(file_feed_info, handler);
+}
+
+inline Result Feed::write_feed_info(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_feed_info(out); };
+  return write_csv(gtfs_path, file_feed_info, write_feed_info_header, container_writer);
 }
 
 inline FeedInfo Feed::get_feed_info() const { return feed_info; }
@@ -2167,7 +2591,13 @@ inline void Feed::set_feed_info(const FeedInfo & info) { feed_info = info; }
 inline Result Feed::read_translations()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_translation(record); };
-  return parse_csv("translations.txt", handler);
+  return parse_csv(file_translations, handler);
+}
+
+inline Result Feed::write_translations(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_translations(out); };
+  return write_csv(gtfs_path, file_translations, write_translations_header, container_writer);
 }
 
 inline const Translations & Feed::get_translations() const { return translations; }
@@ -2191,7 +2621,13 @@ inline void Feed::add_translation(const Translation & translation)
 inline Result Feed::read_attributions()
 {
   auto handler = [this](const ParsedCsvRow & record) { return this->add_attribution(record); };
-  return parse_csv("attributions.txt", handler);
+  return parse_csv(file_attributions, handler);
+}
+
+inline Result Feed::write_attributions(const std::string & gtfs_path) const
+{
+  auto container_writer = [this](std::ofstream & out) { return this->write_attributions(out); };
+  return write_csv(gtfs_path, file_attributions, write_attributions_header, container_writer);
 }
 
 inline const Attributions & Feed::get_attributions() const { return attributions; }
@@ -2199,5 +2635,226 @@ inline const Attributions & Feed::get_attributions() const { return attributions
 inline void Feed::add_attribution(const Attribution & attribution)
 {
   attributions.emplace_back(attribution);
+}
+
+inline void Feed::write_agencies(std::ofstream & out) const
+{
+  for (const auto & agency : agencies)
+  {
+    std::vector<std::string> fields{wrap(agency.agency_id),  wrap(agency.agency_name),
+                                    wrap(agency.agency_url), agency.agency_timezone,
+                                    agency.agency_lang,      wrap(agency.agency_phone),
+                                    agency.agency_fare_url,  agency.agency_email};
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_routes(std::ofstream & out) const
+{
+  for (const auto & route : routes)
+  {
+    std::vector<std::string> fields{wrap(route.route_id),
+                                    wrap(route.agency_id),
+                                    wrap(route.route_short_name),
+                                    wrap(route.route_long_name),
+                                    wrap(route.route_desc),
+                                    wrap(route.route_type),
+                                    route.route_url,
+                                    route.route_color,
+                                    route.route_text_color,
+                                    wrap(route.route_sort_order),
+                                    "" /* continuous_pickup */,
+                                    "" /* continuous_drop_off */};
+    // TODO: handle new route fields.
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_shapes(std::ofstream & out) const
+{
+  for (const auto & shape : shapes)
+  {
+    std::vector<std::string> fields{wrap(shape.shape_id), wrap(shape.shape_pt_lat),
+                                    wrap(shape.shape_pt_lon), wrap(shape.shape_pt_sequence),
+                                    wrap(shape.shape_dist_traveled)};
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_trips(std::ofstream & out) const
+{
+  for (const auto & trip : trips)
+  {
+    std::vector<std::string> fields{
+        wrap(trip.route_id),      wrap(trip.service_id),      wrap(trip.trip_id),
+        wrap(trip.trip_headsign), wrap(trip.trip_short_name), wrap(trip.direction_id),
+        wrap(trip.block_id),      wrap(trip.shape_id),        wrap(trip.wheelchair_accessible),
+        wrap(trip.bikes_allowed)};
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_stops(std::ofstream & out) const
+{
+  for (const auto & stop : stops)
+  {
+    std::vector<std::string> fields{
+        wrap(stop.stop_id),        wrap(stop.stop_code),    wrap(stop.stop_name),
+        wrap(stop.stop_desc),      wrap(stop.stop_lat),     wrap(stop.stop_lon),
+        wrap(stop.zone_id),        stop.stop_url,           wrap(stop.location_type),
+        wrap(stop.parent_station), stop.stop_timezone,      wrap(stop.wheelchair_boarding),
+        wrap(stop.level_id),       wrap(stop.platform_code)};
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_stop_times(std::ofstream & out) const
+{
+  for (const auto & stop_time : stop_times)
+  {
+    std::vector<std::string> fields{wrap(stop_time.trip_id),
+                                    stop_time.arrival_time.get_raw_time(),
+                                    stop_time.departure_time.get_raw_time(),
+                                    wrap(stop_time.stop_id),
+                                    wrap(stop_time.stop_sequence),
+                                    wrap(stop_time.stop_headsign),
+                                    wrap(stop_time.pickup_type),
+                                    wrap(stop_time.drop_off_type),
+                                    "" /* continuous_pickup */,
+                                    "" /* continuous_drop_off */,
+                                    wrap(stop_time.shape_dist_traveled),
+                                    wrap(stop_time.timepoint)};
+    // TODO: handle new stop_times fields.
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_calendar(std::ofstream & out) const
+{
+  for (const auto & item : calendar)
+  {
+    std::vector<std::string> fields{
+        wrap(item.service_id),       wrap(item.monday),   wrap(item.tuesday),
+        wrap(item.wednesday),        wrap(item.thursday), wrap(item.friday),
+        wrap(item.saturday),         wrap(item.sunday),   item.start_date.get_raw_date(),
+        item.end_date.get_raw_date()};
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_calendar_dates(std::ofstream & out) const
+{
+  for (const auto & date : calendar_dates)
+  {
+    std::vector<std::string> fields{wrap(date.service_id), date.date.get_raw_date(),
+                                    wrap(date.exception_type)};
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_transfers(std::ofstream & out) const
+{
+  for (const auto & transfer : transfers)
+  {
+    std::vector<std::string> fields{wrap(transfer.from_stop_id), wrap(transfer.to_stop_id),
+                                    wrap(transfer.transfer_type), wrap(transfer.min_transfer_time)};
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_frequencies(std::ofstream & out) const
+{
+  for (const auto & frequency : frequencies)
+  {
+    std::vector<std::string> fields{wrap(frequency.trip_id), frequency.start_time.get_raw_time(),
+                                    frequency.end_time.get_raw_time(), wrap(frequency.headway_secs),
+                                    wrap(frequency.exact_times)};
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_fare_attributes(std::ofstream & out) const
+{
+  for (const auto & attribute : fare_attributes)
+  {
+    std::vector<std::string> fields{
+        wrap(attribute.fare_id),          wrap(attribute.price),     attribute.currency_type,
+        wrap(attribute.payment_method),   wrap(attribute.transfers), wrap(attribute.agency_id),
+        wrap(attribute.transfer_duration)};
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_fare_rules(std::ofstream & out) const
+{
+  for (const auto & rule : fare_rules)
+  {
+    std::vector<std::string> fields{wrap(rule.fare_id), wrap(rule.route_id), wrap(rule.origin_id),
+                                    wrap(rule.destination_id), wrap(rule.contains_id)};
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_pathways(std::ofstream & out) const
+{
+  for (const auto & path : pathways)
+  {
+    std::vector<std::string> fields{
+        wrap(path.pathway_id),     wrap(path.from_stop_id),     wrap(path.to_stop_id),
+        wrap(path.pathway_mode),   wrap(path.is_bidirectional), wrap(path.length),
+        wrap(path.traversal_time), wrap(path.stair_count),      wrap(path.max_slope),
+        wrap(path.min_width),      wrap(path.signposted_as),    wrap(path.reversed_signposted_as)};
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_levels(std::ofstream & out) const
+{
+  for (const auto & level : levels)
+  {
+    std::vector<std::string> fields{wrap(level.level_id), wrap(level.level_index),
+                                    wrap(level.level_name)};
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_feed_info(std::ofstream & out) const
+{
+  std::vector<std::string> fields{wrap(feed_info.feed_publisher_name),
+                                  feed_info.feed_publisher_url,
+                                  feed_info.feed_lang,
+                                  "" /* default_lang */,
+                                  feed_info.feed_start_date.get_raw_date(),
+                                  feed_info.feed_end_date.get_raw_date(),
+                                  wrap(feed_info.feed_version),
+                                  feed_info.feed_contact_email,
+                                  feed_info.feed_contact_url};
+  // TODO: handle new field_info field.
+  write_joined(out, std::move(fields));
+}
+
+inline void Feed::write_translations(std::ofstream & out) const
+{
+  for (const auto & translation : translations)
+  {
+    std::vector<std::string> fields{translation.table_name,       translation.field_name,
+                                    translation.language,         wrap(translation.translation),
+                                    wrap(translation.record_id),  wrap(translation.record_sub_id),
+                                    wrap(translation.field_value)};
+    write_joined(out, std::move(fields));
+  }
+}
+
+inline void Feed::write_attributions(std::ofstream & out) const
+{
+  for (const auto & attr : attributions)
+  {
+    std::vector<std::string> fields{
+        wrap(attr.attribution_id), wrap(attr.agency_id),         wrap(attr.route_id),
+        wrap(attr.trip_id),        wrap(attr.organization_name), wrap(attr.is_producer),
+        wrap(attr.is_operator),    wrap(attr.is_authority),      attr.attribution_url,
+        attr.attribution_email,    attr.attribution_phone};
+    write_joined(out, std::move(fields));
+  }
 }
 }  // namespace gtfs

@@ -151,9 +151,69 @@ TEST_CASE("Quotation marks")
   CHECK_EQ(res[4], "44.29124");
   CHECK_EQ(res[5], "1");
 }
+
+TEST_CASE("Not wrapped quotation marks")
+{
+  const auto res = CsvParser::split_record(R"(Contains "quotes", commas and text)");
+  REQUIRE_EQ(res.size(), 2);
+  CHECK_EQ(res[0], R"(Contains "quotes")");
+  CHECK_EQ(res[1], "commas and text");
+}
+
+TEST_CASE("Wrapped quotation marks")
+{
+  const auto res = CsvParser::split_record(R"("Contains ""quotes"", commas and text")");
+  REQUIRE_EQ(res.size(), 1);
+  CHECK_EQ(res[0], R"(Contains "quotes", commas and text)");
+}
+
+TEST_CASE("Double wrapped quotation marks")
+{
+  const auto res = CsvParser::split_record(R"(""Double quoted text"")");
+  REQUIRE_EQ(res.size(), 1);
+}
+
+TEST_CASE("Read quoted empty values")
+{
+  const auto res = CsvParser::split_record(",\"\"");
+  REQUIRE_EQ(res.size(), 2);
+  CHECK_EQ(res[0], "");
+  CHECK_EQ(res[1], "");
+}
+TEST_CASE("Read quoted quote")
+{
+  const auto res = CsvParser::split_record(",\"\"\"\"");
+  REQUIRE_EQ(res.size(), 2);
+  CHECK_EQ(res[0], "");
+  CHECK_EQ(res[1], "\"");
+}
+
+TEST_CASE("Read quoted double quote")
+{
+  const auto res = CsvParser::split_record(",\"\"\"\"\"\"");
+  REQUIRE_EQ(res.size(), 2);
+  CHECK_EQ(res[0], "");
+  CHECK_EQ(res[1], "\"\"");
+}
+
+TEST_CASE("Read quoted values with quotes in begin")
+{
+  const auto res = CsvParser::split_record(",\"\"\"Name\"\" and some other\"");
+  REQUIRE_EQ(res.size(), 2);
+  CHECK_EQ(res[0], "");
+  CHECK_EQ(res[1], "\"Name\" and some other");
+}
+
+TEST_CASE("Read quoted values with quotes at end")
+{
+  const auto res = CsvParser::split_record(",\"Text and \"\"Name\"\"\"");
+  REQUIRE_EQ(res.size(), 2);
+  CHECK_EQ(res[0], "");
+  CHECK_EQ(res[1], "Text and \"Name\"");
+}
 TEST_SUITE_END();
 
-TEST_SUITE_BEGIN("Read");
+TEST_SUITE_BEGIN("Read & write");
 // Credits:
 // https://developers.google.com/transit/gtfs/examples/gtfs-feed
 TEST_CASE("Empty container before parsing")
@@ -264,6 +324,11 @@ TEST_CASE("Agency")
 
   const auto agency = feed.get_agency("DTA");
   CHECK(agency);
+
+  REQUIRE_EQ(feed.write_agencies("data/output_feed"), ResultCode::OK);
+  Feed feed_copy("data/output_feed");
+  REQUIRE_EQ(feed_copy.read_agencies(), ResultCode::OK);
+  CHECK_EQ(agencies, feed_copy.get_agencies());
 }
 
 TEST_CASE("Routes")
@@ -533,4 +598,35 @@ TEST_CASE("Feed info")
   CHECK_EQ(info.feed_lang, "en");
 }
 
+TEST_SUITE_END();
+
+TEST_SUITE_BEGIN("Simple pipelines");
+
+TEST_CASE("Agencies create & save")
+{
+  Feed feed_for_writing;
+
+  Agency agency1;
+  agency1.agency_id = "0Id_b^3 Company";
+  agency1.agency_name = R"(Big Big "Bus Company")";
+  agency1.agency_email = "b3c@gtfs.com";
+  agency1.agency_fare_url = "b3c.no";
+
+  Agency agency2;
+  agency2.agency_id = "kwf";
+  agency2.agency_name = R"("killer whale ferries")";
+  agency2.agency_lang = "en";
+  agency2.agency_phone = "842";
+  agency2.agency_timezone = "Asia/Tokyo";
+  agency2.agency_fare_url = "f@mail.com";
+
+  feed_for_writing.add_agency(agency1);
+  feed_for_writing.add_agency(agency2);
+
+  REQUIRE_EQ(feed_for_writing.write_agencies("data/output_feed"), ResultCode::OK);
+  Feed feed_for_testing("data/output_feed");
+
+  REQUIRE_EQ(feed_for_testing.read_agencies(), ResultCode::OK);
+  CHECK_EQ(feed_for_writing.get_agencies(), feed_for_testing.get_agencies());
+}
 TEST_SUITE_END();
