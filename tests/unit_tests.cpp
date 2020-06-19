@@ -180,6 +180,37 @@ TEST_CASE("Read quoted empty values")
   CHECK_EQ(res[0], "");
   CHECK_EQ(res[1], "");
 }
+TEST_CASE("Read quoted quote")
+{
+  const auto res = CsvParser::split_record(",\"\"\"\"");
+  REQUIRE_EQ(res.size(), 2);
+  CHECK_EQ(res[0], "");
+  CHECK_EQ(res[1], "\"");
+}
+
+TEST_CASE("Read quoted double quote")
+{
+  const auto res = CsvParser::split_record(",\"\"\"\"\"\"");
+  REQUIRE_EQ(res.size(), 2);
+  CHECK_EQ(res[0], "");
+  CHECK_EQ(res[1], "\"\"");
+}
+
+TEST_CASE("Read quoted values with quotes in begin")
+{
+  const auto res = CsvParser::split_record(",\"\"\"Name\"\" and some other\"");
+  REQUIRE_EQ(res.size(), 2);
+  CHECK_EQ(res[0], "");
+  CHECK_EQ(res[1], "\"Name\" and some other");
+}
+
+TEST_CASE("Read quoted values with quotes at end")
+{
+  const auto res = CsvParser::split_record(",\"Text and \"\"Name\"\"\"");
+  REQUIRE_EQ(res.size(), 2);
+  CHECK_EQ(res[0], "");
+  CHECK_EQ(res[1], "Text and \"Name\"");
+}
 TEST_SUITE_END();
 
 TEST_SUITE_BEGIN("Read & write");
