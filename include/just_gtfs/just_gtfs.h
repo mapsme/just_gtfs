@@ -116,7 +116,18 @@ inline std::string unquote_text(const std::string & text)
 
   size_t quotes_count = 0;
 
-  for (size_t i = 0; i < text.size(); ++i)
+  size_t start_index = 0;
+  size_t end_index = text.size();
+
+  // Field values that contain quotation marks or commas must be enclosed within quotation marks.
+  if (text.size() > 1 && text.front() == quote && text.back() == quote)
+  {
+    ++start_index;
+    --end_index;
+  }
+
+  // In addition, each quotation mark in the field value must be preceded with a quotation mark.
+  for (size_t i = start_index; i < end_index; ++i)
   {
     if (text[i] != quote)
     {
@@ -141,12 +152,6 @@ inline std::string unquote_text(const std::string & text)
       res += text[i];
     }
   }
-
-  if (res.size() > 2 && res.front() == quote && res.back() == quote && (quotes_count - 2) % 2 == 0)
-    return res.substr(1, res.size() - 2);
-
-  if (res == "\"")
-    return {};
 
   return res;
 }
