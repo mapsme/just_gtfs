@@ -5,6 +5,7 @@
 [![C++](https://img.shields.io/badge/c%2B%2B-17-informational.svg)](https://shields.io/)
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/)
 ![](https://github.com/mapsme/just_gtfs/workflows/C%2FC%2B%2B%20CI/badge.svg)
+[![](https://github.com/sindresorhus/awesome/blob/main/media/mentioned-badge.svg)](https://github.com/CUTR-at-USF/awesome-transit)
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/mapsme/just_gtfs/issues)
 
 
