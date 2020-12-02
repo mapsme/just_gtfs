@@ -11,5 +11,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
 
 enable_testing()
 
+add_library(just_gtfs INTERFACE)
+target_include_directories(just_gtfs INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include)
+
 add_subdirectory(tests)
 add_subdirectory(benchmarks)
