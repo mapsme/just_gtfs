@@ -23,6 +23,14 @@ TEST_CASE("Time in HH:MM:SS format")
   CHECK_EQ(stop_time.get_total_seconds(), 39 * 60 * 60 + 45 * 60 + 30);
 }
 
+TEST_CASE("Time in HHH:MM:SS format")
+{
+  Time stop_time("103:05:21");
+  CHECK_EQ(stop_time.get_hh_mm_ss(), std::make_tuple(103, 5, 21));
+  CHECK_EQ(stop_time.get_raw_time(), "103:05:21");
+  CHECK_EQ(stop_time.get_total_seconds(), 103 * 60 * 60 + 5 * 60 + 21);
+}
+
 TEST_CASE("Time from integers 1")
 {
   Time stop_time(14, 30, 0);
@@ -44,6 +52,7 @@ TEST_CASE("Invalid time format")
   CHECK_THROWS_AS(Time("12/10/00"), const InvalidFieldFormat &);
   CHECK_THROWS_AS(Time("12:100:00"), const InvalidFieldFormat &);
   CHECK_THROWS_AS(Time("12:10:100"), const InvalidFieldFormat &);
+  CHECK_THROWS_AS(Time("12:10/10"), const InvalidFieldFormat &);
 }
 
 TEST_CASE("Time not provided")
