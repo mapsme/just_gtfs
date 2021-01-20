@@ -516,7 +516,7 @@ inline Time::Time(const std::string & raw_time_str) : raw_time(raw_time_str)
     return;
 
   const size_t len = raw_time.size();
-  if (!(len >= 7 && len <= 9) || (raw_time[len - 3] != ':' && raw_time[len - 6] != ':'))
+  if (!(len >= 7 && len <= 9) || raw_time[len - 3] != ':' || raw_time[len - 6] != ':')
     throw InvalidFieldFormat("Time is not in [[H]H]H:MM:SS format: " + raw_time_str);
 
   hh = static_cast<uint16_t>(std::stoi(raw_time.substr(0, len - 6)));
