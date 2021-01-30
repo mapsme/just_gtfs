@@ -20,30 +20,31 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <boost/optional.hpp>
 
 namespace gtfs
 {
 // File names and other entities defined in GTFS----------------------------------------------------
-inline const std::string file_agency = "agency.txt";
-inline const std::string file_stops = "stops.txt";
-inline const std::string file_routes = "routes.txt";
-inline const std::string file_trips = "trips.txt";
-inline const std::string file_stop_times = "stop_times.txt";
-inline const std::string file_calendar = "calendar.txt";
-inline const std::string file_calendar_dates = "calendar_dates.txt";
-inline const std::string file_fare_attributes = "fare_attributes.txt";
-inline const std::string file_fare_rules = "fare_rules.txt";
-inline const std::string file_shapes = "shapes.txt";
-inline const std::string file_frequencies = "frequencies.txt";
-inline const std::string file_transfers = "transfers.txt";
-inline const std::string file_pathways = "pathways.txt";
-inline const std::string file_levels = "levels.txt";
-inline const std::string file_feed_info = "feed_info.txt";
-inline const std::string file_translations = "translations.txt";
-inline const std::string file_attributions = "attributions.txt";
+const std::string file_agency = "agency.txt";
+const std::string file_stops = "stops.txt";
+ const std::string file_routes = "routes.txt";
+ const std::string file_trips = "trips.txt";
+ const std::string file_stop_times = "stop_times.txt";
+ const std::string file_calendar = "calendar.txt";
+ const std::string file_calendar_dates = "calendar_dates.txt";
+ const std::string file_fare_attributes = "fare_attributes.txt";
+ const std::string file_fare_rules = "fare_rules.txt";
+ const std::string file_shapes = "shapes.txt";
+ const std::string file_frequencies = "frequencies.txt";
+ const std::string file_transfers = "transfers.txt";
+ const std::string file_pathways = "pathways.txt";
+ const std::string file_levels = "levels.txt";
+ const std::string file_feed_info = "feed_info.txt";
+ const std::string file_translations = "translations.txt";
+ const std::string file_attributions = "attributions.txt";
 
-inline constexpr char csv_separator = ',';
-inline constexpr char quote = '"';
+ constexpr char csv_separator = ',';
+ constexpr char quote = '"';
 
 // Helper classes and functions---------------------------------------------------------------------
 struct InvalidFieldFormat : public std::exception
@@ -1181,28 +1182,28 @@ public:
   inline Result write_agencies(const std::string & gtfs_path) const;
 
   inline const Agencies & get_agencies() const;
-  inline std::optional<Agency> get_agency(const Id & agency_id) const;
+  inline boost::optional<Agency> get_agency(const Id & agency_id) const;
   inline void add_agency(const Agency & agency);
 
   inline Result read_stops();
   inline Result write_stops(const std::string & gtfs_path) const;
 
   inline const Stops & get_stops() const;
-  inline std::optional<Stop> get_stop(const Id & stop_id) const;
+  inline boost::optional<Stop> get_stop(const Id & stop_id) const;
   inline void add_stop(const Stop & stop);
 
   inline Result read_routes();
   inline Result write_routes(const std::string & gtfs_path) const;
 
   inline const Routes & get_routes() const;
-  inline std::optional<Route> get_route(const Id & route_id) const;
+  inline boost::optional<Route> get_route(const Id & route_id) const;
   inline void add_route(const Route & route);
 
   inline Result read_trips();
   inline Result write_trips(const std::string & gtfs_path) const;
 
   inline const Trips & get_trips() const;
-  inline std::optional<Trip> get_trip(const Id & trip_id) const;
+  inline boost::optional<Trip> get_trip(const Id & trip_id) const;
   inline void add_trip(const Trip & trip);
 
   inline Result read_stop_times();
@@ -1217,7 +1218,7 @@ public:
   inline Result write_calendar(const std::string & gtfs_path) const;
 
   inline const Calendar & get_calendar() const;
-  inline std::optional<CalendarItem> get_calendar(const Id & service_id) const;
+  inline boost::optional<CalendarItem> get_calendar(const Id & service_id) const;
   inline void add_calendar_item(const CalendarItem & calendar_item);
 
   inline Result read_calendar_dates();
@@ -1259,7 +1260,7 @@ public:
   inline Result write_transfers(const std::string & gtfs_path) const;
 
   inline const Transfers & get_transfers() const;
-  inline std::optional<Transfer> get_transfer(const Id & from_stop_id, const Id & to_stop_id) const;
+  inline boost::optional<Transfer> get_transfer(const Id & from_stop_id, const Id & to_stop_id) const;
   inline void add_transfer(const Transfer & transfer);
 
   inline Result read_pathways();
@@ -1274,7 +1275,7 @@ public:
   inline Result write_levels(const std::string & gtfs_path) const;
 
   inline const Levels & get_levels() const;
-  inline std::optional<Level> get_level(const Id & level_id) const;
+  inline boost::optional<Level> get_level(const Id & level_id) const;
   inline void add_level(const Level & level);
 
   inline Result read_feed_info();
@@ -1372,57 +1373,74 @@ inline bool ErrorParsingOptionalFile(const Result & res)
 inline Result Feed::read_feed()
 {
   // Read required files:
-  if (auto res = read_agencies(); res != ResultCode::OK)
+  auto res = read_agencies();
+  if (res != ResultCode::OK)
+    return res;
+  
+  res = read_stops();
+  if (res != ResultCode::OK)
     return res;
 
-  if (auto res = read_stops(); res != ResultCode::OK)
+  res = read_routes();
+  if (res != ResultCode::OK)
     return res;
 
-  if (auto res = read_routes(); res != ResultCode::OK)
+   res = read_trips();
+  if (res != ResultCode::OK)
     return res;
 
-  if (auto res = read_trips(); res != ResultCode::OK)
-    return res;
-
-  if (auto res = read_stop_times(); res != ResultCode::OK)
+   res = read_stop_times();
+  if (res != ResultCode::OK)
     return res;
 
   // Read conditionally required files:
-  if (auto res = read_calendar(); ErrorParsingOptionalFile(res))
+   res = read_calendar();
+  if (ErrorParsingOptionalFile(res))
     return res;
 
-  if (auto res = read_calendar_dates(); ErrorParsingOptionalFile(res))
+   res = read_calendar_dates();
+  if (ErrorParsingOptionalFile(res))
     return res;
 
   // Read optional files:
-  if (auto res = read_shapes(); ErrorParsingOptionalFile(res))
+   res = read_shapes();
+  if (ErrorParsingOptionalFile(res))
     return res;
 
-  if (auto res = read_transfers(); ErrorParsingOptionalFile(res))
+   res = read_transfers();
+  if (ErrorParsingOptionalFile(res))
     return res;
 
-  if (auto res = read_frequencies(); ErrorParsingOptionalFile(res))
+   res = read_frequencies();
+  if (ErrorParsingOptionalFile(res))
     return res;
 
-  if (auto res = read_fare_attributes(); ErrorParsingOptionalFile(res))
+   res = read_fare_attributes();
+  if (ErrorParsingOptionalFile(res))
     return res;
 
-  if (auto res = read_fare_rules(); ErrorParsingOptionalFile(res))
+   res = read_fare_rules();
+  if (ErrorParsingOptionalFile(res))
     return res;
 
-  if (auto res = read_pathways(); ErrorParsingOptionalFile(res))
+   res = read_pathways();
+  if (ErrorParsingOptionalFile(res))
     return res;
 
-  if (auto res = read_levels(); ErrorParsingOptionalFile(res))
+   res = read_levels();
+  if (ErrorParsingOptionalFile(res))
     return res;
 
-  if (auto res = read_attributions(); ErrorParsingOptionalFile(res))
+   res = read_attributions();
+  if (ErrorParsingOptionalFile(res))
     return res;
 
-  if (auto res = read_feed_info(); ErrorParsingOptionalFile(res))
+   res = read_feed_info(); 
+  if (ErrorParsingOptionalFile(res))
     return res;
 
-  if (auto res = read_translations(); ErrorParsingOptionalFile(res))
+   res = read_translations(); 
+  if (ErrorParsingOptionalFile(res))
     return res;
 
   return ResultCode::OK;
@@ -2142,7 +2160,7 @@ inline Result Feed::write_agencies(const std::string & gtfs_path) const
 
 inline const Agencies & Feed::get_agencies() const { return agencies; }
 
-inline std::optional<Agency> Feed::get_agency(const Id & agency_id) const
+inline boost::optional<Agency> Feed::get_agency(const Id & agency_id) const
 {
   // agency id is required when the dataset contains data for multiple agencies,
   // otherwise it is optional:
@@ -2154,7 +2172,7 @@ inline std::optional<Agency> Feed::get_agency(const Id & agency_id) const
                    [&agency_id](const Agency & agency) { return agency.agency_id == agency_id; });
 
   if (it == agencies.end())
-    return std::nullopt;
+    return boost::none;
 
   return *it;
 }
@@ -2175,13 +2193,13 @@ inline Result Feed::write_stops(const std::string & gtfs_path) const
 
 inline const Stops & Feed::get_stops() const { return stops; }
 
-inline std::optional<Stop> Feed::get_stop(const Id & stop_id) const
+inline boost::optional<Stop> Feed::get_stop(const Id & stop_id) const
 {
   const auto it = std::find_if(stops.begin(), stops.end(),
                                [&stop_id](const Stop & stop) { return stop.stop_id == stop_id; });
 
   if (it == stops.end())
-    return std::nullopt;
+    return boost::none;
 
   return *it;
 }
@@ -2202,14 +2220,14 @@ inline Result Feed::write_routes(const std::string & gtfs_path) const
 
 inline const Routes & Feed::get_routes() const { return routes; }
 
-inline std::optional<Route> Feed::get_route(const Id & route_id) const
+inline boost::optional<Route> Feed::get_route(const Id & route_id) const
 {
   const auto it = std::find_if(routes.begin(), routes.end(), [&route_id](const Route & route) {
     return route.route_id == route_id;
   });
 
   if (it == routes.end())
-    return std::nullopt;
+    return boost::none;
 
   return *it;
 }
@@ -2230,13 +2248,13 @@ inline Result Feed::write_trips(const std::string & gtfs_path) const
 
 inline const Trips & Feed::get_trips() const { return trips; }
 
-inline std::optional<Trip> Feed::get_trip(const Id & trip_id) const
+inline boost::optional<Trip> Feed::get_trip(const Id & trip_id) const
 {
   const auto it = std::find_if(trips.begin(), trips.end(),
                                [&trip_id](const Trip & trip) { return trip.trip_id == trip_id; });
 
   if (it == trips.end())
-    return std::nullopt;
+    return boost::none;
 
   return *it;
 }
@@ -2301,7 +2319,7 @@ inline Result Feed::write_calendar(const std::string & gtfs_path) const
 
 inline const Calendar & Feed::get_calendar() const { return calendar; }
 
-inline std::optional<CalendarItem> Feed::get_calendar(const Id & service_id) const
+inline boost::optional<CalendarItem> Feed::get_calendar(const Id & service_id) const
 {
   const auto it = std::find_if(calendar.begin(), calendar.end(),
                                [&service_id](const CalendarItem & calendar_item) {
@@ -2309,7 +2327,7 @@ inline std::optional<CalendarItem> Feed::get_calendar(const Id & service_id) con
                                });
 
   if (it == calendar.end())
-    return std::nullopt;
+    return boost::none;
 
   return *it;
 }
@@ -2490,7 +2508,7 @@ inline Result Feed::write_transfers(const std::string & gtfs_path) const
 
 inline const Transfers & Feed::get_transfers() const { return transfers; }
 
-inline std::optional<Transfer> Feed::get_transfer(const Id & from_stop_id,
+inline boost::optional<Transfer> Feed::get_transfer(const Id & from_stop_id,
                                                   const Id & to_stop_id) const
 {
   const auto it = std::find_if(
@@ -2499,7 +2517,7 @@ inline std::optional<Transfer> Feed::get_transfer(const Id & from_stop_id,
       });
 
   if (it == transfers.end())
-    return std::nullopt;
+    return boost::none;
 
   return *it;
 }
@@ -2558,14 +2576,14 @@ inline Result Feed::write_levels(const std::string & gtfs_path) const
 
 inline const Levels & Feed::get_levels() const { return levels; }
 
-inline std::optional<Level> Feed::get_level(const Id & level_id) const
+inline boost::optional<Level> Feed::get_level(const Id & level_id) const
 {
   const auto it = std::find_if(levels.begin(), levels.end(), [&level_id](const Level & level) {
     return level.level_id == level_id;
   });
 
   if (it == levels.end())
-    return std::nullopt;
+    return boost::none;
 
   return *it;
 }
