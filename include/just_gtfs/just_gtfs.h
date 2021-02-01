@@ -1840,7 +1840,7 @@ inline Result Feed::add_fare_attributes(const ParsedCsvRow & row)
 
     item.currency_type = row.at("currency_type");
     set_field(item.payment_method, row, "payment_method", false);
-    set_field(item.transfers, row, "transfers", false);
+    set_field(item.transfers, row, "transfers");
 
     // Conditionally optional:
     item.agency_id = get_value_or_default(row, "agency_id");
@@ -2779,7 +2779,11 @@ inline void Feed::write_fare_attributes(std::ofstream & out) const
   {
     std::vector<std::string> fields{
         wrap(attribute.fare_id),          wrap(attribute.price),     attribute.currency_type,
-        wrap(attribute.payment_method),   wrap(attribute.transfers), wrap(attribute.agency_id),
+        wrap(attribute.payment_method),
+        // Here we handle GTFS specification corner case: "The fact that this field can be left
+        // empty is an exception to the requirement that a Required field must not be empty.":
+        attribute.transfers == FareTransfers::Unlimited? "" : wrap(attribute.transfers),
+        wrap(attribute.agency_id),
         wrap(attribute.transfer_duration)};
     write_joined(out, std::move(fields));
   }
