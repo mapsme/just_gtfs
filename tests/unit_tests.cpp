@@ -310,7 +310,7 @@ TEST_CASE("Read GTFS feed")
   CHECK_EQ(feed.get_attributions().size(), 1);
   CHECK_EQ(feed.get_calendar().size(), 2);
   CHECK_EQ(feed.get_calendar_dates().size(), 1);
-  CHECK_EQ(feed.get_fare_attributes().size(), 2);
+  CHECK_EQ(feed.get_fare_attributes().size(), 3);
   CHECK_EQ(feed.get_fare_rules().size(), 4);
   CHECK(!feed.get_feed_info().feed_publisher_name.empty());
   CHECK_EQ(feed.get_levels().size(), 3);
@@ -494,7 +494,7 @@ TEST_CASE("Fare attributes")
   REQUIRE_EQ(feed.read_fare_attributes(), ResultCode::OK);
 
   const auto & attributes = feed.get_fare_attributes();
-  REQUIRE_EQ(attributes.size(), 2);
+  REQUIRE_EQ(attributes.size(), 3);
   CHECK_EQ(attributes[0].fare_id, "p");
   CHECK_EQ(attributes[0].price, 1.25);
   CHECK_EQ(attributes[0].currency_type, "USD");
@@ -502,9 +502,28 @@ TEST_CASE("Fare attributes")
   CHECK_EQ(attributes[0].transfers, FareTransfers::No);
   CHECK_EQ(attributes[0].transfer_duration, 0);
 
+  CHECK_EQ(attributes[1].fare_id, "a");
+  CHECK_EQ(attributes[1].price, 5.25);
+  CHECK_EQ(attributes[1].currency_type, "USD");
+  CHECK_EQ(attributes[1].payment_method, FarePayment::BeforeBoarding);
+  CHECK_EQ(attributes[1].transfers, FareTransfers::Once);
+  CHECK_EQ(attributes[1].transfer_duration, 0);
+
+  CHECK_EQ(attributes[2].fare_id, "x");
+  CHECK_EQ(attributes[2].price, 20);
+  CHECK_EQ(attributes[2].currency_type, "USD");
+  CHECK_EQ(attributes[2].payment_method, FarePayment::OnBoard);
+  CHECK_EQ(attributes[2].transfers, FareTransfers::Unlimited);
+  CHECK_EQ(attributes[2].transfer_duration, 60);
+
   const auto & attributes_for_id = feed.get_fare_attributes("a");
   REQUIRE_EQ(attributes_for_id.size(), 1);
   CHECK_EQ(attributes_for_id[0].price, 5.25);
+
+  REQUIRE_EQ(feed.write_fare_attributes("data/output_feed"), ResultCode::OK);
+  Feed feed_copy("data/output_feed");
+  REQUIRE_EQ(feed_copy.read_fare_attributes(), ResultCode::OK);
+  CHECK_EQ(attributes, feed_copy.get_fare_attributes());
 }
 
 TEST_CASE("Fare rules")
