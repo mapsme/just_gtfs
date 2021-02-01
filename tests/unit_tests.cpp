@@ -519,6 +519,11 @@ TEST_CASE("Fare attributes")
   const auto & attributes_for_id = feed.get_fare_attributes("a");
   REQUIRE_EQ(attributes_for_id.size(), 1);
   CHECK_EQ(attributes_for_id[0].price, 5.25);
+
+  REQUIRE_EQ(feed.write_fare_attributes("data/output_feed"), ResultCode::OK);
+  Feed feed_copy("data/output_feed");
+  REQUIRE_EQ(feed_copy.read_fare_attributes(), ResultCode::OK);
+  CHECK_EQ(attributes, feed_copy.get_fare_attributes());
 }
 
 TEST_CASE("Fare rules")

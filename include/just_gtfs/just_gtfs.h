@@ -999,6 +999,15 @@ struct FareAttributesItem
   size_t transfer_duration = 0;  // Length of time in seconds before a transfer expires
 };
 
+
+inline bool operator==(const FareAttributesItem & lhs, const FareAttributesItem & rhs)
+{
+  return std::tie(lhs.fare_id, lhs.price, lhs.currency_type, lhs.payment_method,
+                  lhs.transfers, lhs.agency_id, lhs.transfer_duration) ==
+      std::tie(rhs.fare_id, rhs.price, rhs.currency_type, rhs.payment_method,
+               rhs.transfers, rhs.agency_id, rhs.transfer_duration);
+}
+
 // Optional dataset file
 struct FareRule
 {
