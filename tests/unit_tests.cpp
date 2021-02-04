@@ -230,7 +230,8 @@ TEST_CASE("Empty container before parsing")
   Feed feed("data/non_existing_dir");
   REQUIRE(feed.get_agencies().empty());
   auto agency = feed.get_agency("agency_10");
-  CHECK(!agency.has_value());
+  const bool no_agency = agency == boost::none;
+  CHECK_EQ(no_agency, true);
 }
 
 TEST_CASE("Non existing directory")
@@ -254,7 +255,8 @@ TEST_CASE("Transfers")
   CHECK_EQ(transfers[0].min_transfer_time, 70);
 
   const auto & transfer = feed.get_transfer("314", "11");
-  REQUIRE(transfer.has_value());
+  const bool transfer_exists = transfer != boost::none;
+  REQUIRE_EQ(transfer_exists, true);
   CHECK_EQ(transfer.value().transfer_type, TransferType::Timed);
   CHECK_EQ(transfer.value().min_transfer_time, 0);
 }
@@ -267,7 +269,9 @@ TEST_CASE("Calendar")
   REQUIRE_EQ(calendar.size(), 2);
 
   const auto & calendar_record = feed.get_calendar("WE");
-  REQUIRE(calendar_record.has_value());
+
+  const bool calendar_exists = calendar_record != boost::none;
+  REQUIRE_EQ(calendar_exists, true);
 
   CHECK_EQ(calendar_record->start_date, Date(2007, 01, 01));
   CHECK_EQ(calendar_record->end_date, Date(2010, 12, 31));
@@ -333,7 +337,8 @@ TEST_CASE("Agency")
   CHECK_EQ(agencies[0].agency_timezone, "America/Los_Angeles");
 
   const auto agency = feed.get_agency("DTA");
-  CHECK(agency.has_value());
+  const bool agency_exists = agency != boost::none;
+  CHECK_EQ(agency_exists, true);
 
   REQUIRE_EQ(feed.write_agencies("data/output_feed"), ResultCode::OK);
   Feed feed_copy("data/output_feed");
@@ -358,7 +363,8 @@ TEST_CASE("Routes")
   CHECK(routes[0].route_desc.empty());
 
   const auto & route = feed.get_route("AB");
-  CHECK(route.has_value());
+  const bool route_exists = route != boost::none;
+  CHECK_EQ(route_exists, true);
 }
 
 TEST_CASE("Trips")
@@ -378,7 +384,8 @@ TEST_CASE("Trips")
   CHECK_EQ(trips[0].trip_id, "AB1");
 
   const auto & trip = feed.get_trip("AB1");
-  REQUIRE(trip.has_value());
+  const bool trip_exists = trip != boost::none;
+  REQUIRE_EQ(trip_exists, true);
   CHECK(trip.value().trip_short_name.empty());
 }
 
@@ -400,7 +407,8 @@ TEST_CASE("Stops")
   CHECK(stops[0].zone_id.empty());
 
   auto const & stop = feed.get_stop("FUR_CREEK_RES");
-  REQUIRE(stop.has_value());
+  const bool stop_exists = stop != boost::none;
+  REQUIRE_EQ(stop_exists, true);
 }
 
 TEST_CASE("StopTimes")
@@ -455,7 +463,8 @@ TEST_CASE("Calendar")
   CHECK_EQ(calendar[0].sunday, CalendarAvailability::Available);
 
   const auto & calendar_for_service = feed.get_calendar("FULLW");
-  CHECK(calendar_for_service.has_value());
+  const bool calendar_exists = calendar_for_service != boost::none;
+  CHECK_EQ(calendar_exists, true);
 }
 
 TEST_CASE("Calendar dates")
@@ -534,7 +543,8 @@ TEST_CASE("Levels")
   CHECK_EQ(levels[0].level_index, -1.5);
 
   const auto & level = feed.get_level("U321L2");
-  REQUIRE(level.has_value());
+  const bool level_exists = level != boost::none;
+  REQUIRE_EQ(level_exists, true);
 
   CHECK_EQ(level.value().level_index, -2);
   CHECK_EQ(level.value().level_name, "Vestibul2");
