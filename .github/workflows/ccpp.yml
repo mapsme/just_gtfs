@@ -2,9 +2,9 @@ name: C/C++ CI
 
 on:
   push:
-    branches: [ master, add-* ]
+    branches: [ cpp14, add-* ]
   pull_request:
-    branches: [ master ]
+    branches: [ cpp14 ]
 
 jobs:
   build:
@@ -13,6 +13,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+     # install dependencies
+    - name: boost
+      run: sudo apt-get update && sudo apt-get install -yq libboost1.65-dev
     - name: git_actions
       run: git submodule update --init --recursive
     - name: cmake
