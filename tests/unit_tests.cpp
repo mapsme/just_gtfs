@@ -395,7 +395,7 @@ TEST_CASE("Stops")
   CHECK_EQ(stops[0].stop_id, "FUR_CREEK_RES");
   CHECK(stops[0].stop_desc.empty());
   CHECK_EQ(stops[0].stop_name, "Furnace Creek Resort (Demo)");
-  CHECK_EQ(stops[0].location_type, StopLocationType::GenericNode);
+  CHECK_EQ(stops[0].location_type, StopLocationType::StopOrPlatform);
   CHECK(stops[0].zone_id.empty());
 
   auto const & stop = feed.get_stop("FUR_CREEK_RES");
