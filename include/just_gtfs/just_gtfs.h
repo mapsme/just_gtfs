@@ -891,7 +891,7 @@ struct Stop
   Text stop_code;
   Text stop_desc;
   Text stop_url;
-  StopLocationType location_type = StopLocationType::GenericNode;
+  StopLocationType location_type = StopLocationType::StopOrPlatform;
   Text stop_timezone;
   Text wheelchair_boarding;
   Id level_id;
