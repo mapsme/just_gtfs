@@ -455,6 +455,7 @@ public:
   inline Time() = default;
   inline explicit Time(const std::string & raw_time_str);
   inline Time(uint16_t hours, uint16_t minutes, uint16_t seconds);
+  inline Time(size_t seconds);
   inline bool is_provided() const;
   inline size_t get_total_seconds() const;
   inline std::tuple<uint16_t, uint16_t, uint16_t> get_hh_mm_ss() const;
@@ -541,6 +542,13 @@ inline Time::Time(uint16_t hours, uint16_t minutes, uint16_t seconds)
   set_total_seconds();
   set_raw_time();
   time_is_provided = true;
+}
+
+inline Time::Time(size_t seconds)
+  : time_is_provided(true), total_seconds(seconds),
+    hh(seconds / 3600), mm((seconds % 3600) / 60), ss(seconds % 3600)
+{
+  set_raw_time();
 }
 
 inline bool Time::is_provided() const { return time_is_provided; }
