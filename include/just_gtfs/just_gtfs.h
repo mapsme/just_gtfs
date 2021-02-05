@@ -644,7 +644,7 @@ using CurrencyCode = std::string;
 using LanguageCode = std::string;
 
 // Helper enums for some GTFS fields ---------------------------------------------------------------
-enum class StopLocationType
+enum class StopLocationType : int8_t
 {
   StopOrPlatform = 0,
   Station = 1,
@@ -654,7 +654,7 @@ enum class StopLocationType
 };
 
 // The type of transportation used on a route.
-enum class RouteType
+enum class RouteType : int16_t
 {
   // GTFS route types
   Tram = 0,         // Tram, Streetcar, Light rail
@@ -752,20 +752,20 @@ enum class RouteType
   HorseDrawnCarriage = 1702
 };
 
-enum class TripDirectionId
+enum class TripDirectionId : bool
 {
   DefaultDirection = 0,  // e.g. outbound
   OppositeDirection = 1  // e.g. inbound
 };
 
-enum class TripAccess
+enum class TripAccess : int8_t
 {
   NoInfo = 0,
   Yes = 1,
   No = 2
 };
 
-enum class StopTimeBoarding
+enum class StopTimeBoarding : int8_t
 {
   RegularlyScheduled = 0,
   No = 1,                   // Not available
@@ -773,31 +773,31 @@ enum class StopTimeBoarding
   CoordinateWithDriver = 3  // Must coordinate with driver to arrange
 };
 
-enum class StopTimePoint
+enum class StopTimePoint : bool
 {
   Approximate = 0,
   Exact = 1
 };
 
-enum class CalendarAvailability
+enum class CalendarAvailability : bool
 {
   NotAvailable = 0,
   Available = 1
 };
 
-enum class CalendarDateException
+enum class CalendarDateException : int8_t
 {
   Added = 1,  // Service has been added for the specified date
   Removed = 2
 };
 
-enum class FarePayment
+enum class FarePayment : bool
 {
   OnBoard = 0,
   BeforeBoarding = 1  // Fare must be paid before boarding
 };
 
-enum class FareTransfers
+enum class FareTransfers : int8_t
 {
   No = 0,  // No transfers permitted on this fare
   Once = 1,
@@ -805,13 +805,13 @@ enum class FareTransfers
   Unlimited = 3
 };
 
-enum class FrequencyTripService
+enum class FrequencyTripService : bool
 {
   FrequencyBased = 0,  // Frequency-based trips
   ScheduleBased = 1    // Schedule-based trips with the exact same headway throughout the day
 };
 
-enum class TransferType
+enum class TransferType : int8_t
 {
   Recommended = 0,
   Timed = 1,
@@ -819,7 +819,7 @@ enum class TransferType
   NotPossible = 3
 };
 
-enum class PathwayMode
+enum class PathwayMode : int8_t
 {
   Walkway = 1,
   Stairs = 2,
@@ -830,13 +830,13 @@ enum class PathwayMode
   ExitGate = 7
 };
 
-enum class PathwayDirection
+enum class PathwayDirection : bool
 {
   Unidirectional = 0,
   Bidirectional = 1
 };
 
-enum class AttributionRole
+enum class AttributionRole : bool
 {
   No = 0,  // Organization doesn’t have this role
   Yes = 1  // Organization does have this role
