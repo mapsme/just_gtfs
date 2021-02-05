@@ -1348,6 +1348,7 @@ private:
   inline void write_translations(std::ofstream & out) const;
   inline void write_attributions(std::ofstream & out) const;
 
+protected:
   std::string gtfs_directory;
 
   Agencies agencies;
