@@ -200,7 +200,7 @@ inline void write_routes_header(std::ofstream & out)
 inline void write_shapes_header(std::ofstream & out)
 {
   std::vector<std::string> fields = {"shape_id", "shape_pt_lat", "shape_pt_lon",
-                                     "shape_pt_sequence"};
+                                     "shape_pt_sequence", "shape_dist_traveled"};
   write_joined(out, std::move(fields));
 }
 
