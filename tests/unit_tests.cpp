@@ -638,4 +638,18 @@ TEST_CASE("Agencies create & save")
   REQUIRE_EQ(feed_for_testing.read_agencies(), ResultCode::OK);
   CHECK_EQ(feed_for_writing.get_agencies(), feed_for_testing.get_agencies());
 }
+
+TEST_CASE("Shapes create & save")
+{
+  Feed feed_for_writing;
+
+  feed_for_writing.add_shape(ShapePoint{"id1", 61.197843, -149.867731, 0, 0});
+  feed_for_writing.add_shape(ShapePoint{"id1", 61.199419, -149.867680, 1, 178});
+  feed_for_writing.add_shape(ShapePoint{"id2", 61.199972, -149.867731, 2, 416});
+
+  REQUIRE_EQ(feed_for_writing.write_shapes("data/output_feed"), ResultCode::OK);
+  Feed feed_for_testing("data/output_feed");
+
+  REQUIRE_EQ(feed_for_testing.read_shapes(), ResultCode::OK);
+}
 TEST_SUITE_END();
