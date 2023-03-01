@@ -651,5 +651,6 @@ TEST_CASE("Shapes create & save")
   Feed feed_for_testing("data/output_feed");
 
   REQUIRE_EQ(feed_for_testing.read_shapes(), ResultCode::OK);
+  CHECK_EQ(feed_for_testing.get_shapes().size(), 3);
 }
 TEST_SUITE_END();
