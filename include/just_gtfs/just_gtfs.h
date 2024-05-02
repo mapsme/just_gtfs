@@ -426,7 +426,7 @@ inline Result CsvParser::read_row(std::map<std::string, std::string> & obj)
   if (!getline(csv_stream, row))
     return {ResultCode::END_OF_FILE, {}};
 
-  if (row == "\r")
+  if (row.empty() || row == "\r")
     return ResultCode::OK;
 
   const std::vector<std::string> fields_values = split_record(row);
