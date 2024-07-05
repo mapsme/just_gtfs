@@ -2082,7 +2082,7 @@ inline Result Feed::add_attribution(const ParsedCsvRow & row)
 
     attribution.attribution_url = get_value_or_default(row, "attribution_url");
     attribution.attribution_email = get_value_or_default(row, "attribution_email");
-    attribution.trip_id = get_value_or_default(row, "attribution_phone");
+    attribution.attribution_phone = get_value_or_default(row, "attribution_phone");
   }
   catch (const std::out_of_range & ex)
   {
